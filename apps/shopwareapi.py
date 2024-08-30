@@ -31,3 +31,9 @@ class ShopWareAPI:
         response = requests.get(url, headers=self.get_headers(), params=params)
         response.raise_for_status()
         return response.json()
+
+    def get_categories(self):
+        url = f"{self.base_url}/api/v1/tenants/{self.tenant_id}/categories"
+        response = requests.get(url, headers=self.get_headers())
+        response.raise_for_status()
+        return response.json()

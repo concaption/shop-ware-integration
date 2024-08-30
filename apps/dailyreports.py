@@ -48,8 +48,14 @@ class DailyReports:
 
         return pd.DataFrame(data)
 
+    def get_categories(self):
+        categories_data = self.api.get_categories()
+        categories = [{'Category ID': cat['id'], 'Category Name': cat['text']} for cat in categories_data['results']]
+        return pd.DataFrame(categories)
+
     def generate_html_report(self):
-        df = self.get_next_7_weekdays_appointments()
+        appointments_df = self.get_next_7_weekdays_appointments()
+        categories_df = self.get_categories()
 
         html_content = f"""
         <!DOCTYPE html>
@@ -57,17 +63,17 @@ class DailyReports:
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Appointments for the Next 7 Weekdays</title>
+            <title>Shop-Ware Reports</title>
             <style>
                 body {{
                     font-family: Arial, sans-serif;
                     line-height: 1.6;
                     color: #333;
-                    max-width: 800px;
+                    max-width: 1000px;
                     margin: 0 auto;
                     padding: 20px;
                 }}
-                h1 {{
+                h1, h2 {{
                     color: #2c3e50;
                     text-align: center;
                 }}
@@ -91,8 +97,13 @@ class DailyReports:
             </style>
         </head>
         <body>
-            <h1>Appointments for the Next 7 Weekdays</h1>
-            {df.to_html(index=False)}
+            <h1>Shop-Ware Reports</h1>
+
+            <h2>Appointments for the Next 7 Weekdays</h2>
+            {appointments_df.to_html(index=False)}
+
+            <h2>Categories</h2>
+            {categories_df.to_html(index=False)}
         </body>
         </html>
         """
