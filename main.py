@@ -2,7 +2,7 @@ import os
 import requests
 from apps.shopwareapi import ShopWareAPI
 from apps.dailyreports import DailyReports
-
+from utils.utils import send_email
 if __name__ == "__main__":
     api = ShopWareAPI(
         base_url='https://api.shop-ware.com',
@@ -13,6 +13,6 @@ if __name__ == "__main__":
     try:
         html = daily_reports.generate_html_report()
         daily_reports.save_html_report(html)
-
+        send_email(html)
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")

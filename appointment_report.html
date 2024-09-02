@@ -5,35 +5,60 @@
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Shop-Ware Reports</title>
-            <style>
+            <style type="text/css">
                 body {
                     font-family: Arial, sans-serif;
                     line-height: 1.6;
-                    color: #333;
-                    max-width: 1000px;
+                    color: #333333;
+                    max-width: 600px;
                     margin: 0 auto;
                     padding: 20px;
                 }
-                h1, h2 {
+                h1, h2, h3 {
                     color: #2c3e50;
-                    text-align: center;
                 }
                 table {
                     width: 100%;
                     border-collapse: collapse;
-                    margin-top: 20px;
+                    margin-bottom: 20px;
                 }
                 th, td {
-                    padding: 12px;
+                    padding: 10px;
                     text-align: left;
-                    border-bottom: 1px solid #ddd;
+                    border-bottom: 1px solid #dddddd;
                 }
                 th {
-                    background-color: #2c3e50;
-                    color: white;
-                }
-                tr:nth-child(even) {
                     background-color: #f2f2f2;
+                }
+                .closed-sales-summary {
+                    background-color: #f2f2f2;
+                    padding: 15px;
+                    margin-bottom: 20px;
+                }
+                .closed-sales-summary h3 {
+                    margin-top: 0;
+                    border-bottom: 2px solid #2c3e50;
+                    padding-bottom: 10px;
+                }
+                .highlight {
+                    font-weight: bold;
+                    color: #27ae60;
+                }
+                .closed-ro {
+                    background-color: #ffffff;
+                    border: 1px solid #dddddd;
+                    padding: 15px;
+                    margin-bottom: 15px;
+                }
+                .closed-ro h4 {
+                    margin-top: 0;
+                    color: #2c3e50;
+                    border-bottom: 1px solid #dddddd;
+                    padding-bottom: 5px;
+                }
+                .ro-gp {
+                    font-weight: bold;
+                    color: #27ae60;
                 }
             </style>
         </head>
@@ -53,12 +78,12 @@
     <tr>
       <td>2024-09-02</td>
       <td>Monday</td>
-      <td>1</td>
+      <td>0</td>
     </tr>
     <tr>
       <td>2024-09-03</td>
       <td>Tuesday</td>
-      <td>4</td>
+      <td>5</td>
     </tr>
     <tr>
       <td>2024-09-04</td>
@@ -88,6 +113,230 @@
   </tbody>
 </table>
 
+            <div class="section">
+                <h2>Closed Sales of the Day</h2>
+                
+        <div class="closed-sales-summary">
+            <h3>Closed Sales Summary</h3>
+            <p>Total Revenue: <span class="highlight">$3153.50</span></p>
+            <p>Total Cost: $1204.05</p>
+            <p>Gross Profit: <span class="highlight">$1949.46</span></p>
+            <p>GP%: <span class="highlight">61.82%</span></p>
+        </div>
+        <h3>Closed Repair Orders:</h3>
+        
+            <div class="closed-ro">
+                <h4>RO Number: 12195</h4>
+                <p>Revenue: $620.67</p>
+                <p>Cost: $175.55</p>
+                <p>Gross Profit: $445.12</p>
+                <p class="ro-gp">GP%: 71.72%</p>
+            </div>
+            
+            <div class="closed-ro">
+                <h4>RO Number: 11882</h4>
+                <p>Revenue: $332.14</p>
+                <p>Cost: $61.91</p>
+                <p>Gross Profit: $270.24</p>
+                <p class="ro-gp">GP%: 81.36%</p>
+            </div>
+            
+            <div class="closed-ro">
+                <h4>RO Number: 12661</h4>
+                <p>Revenue: $1139.61</p>
+                <p>Cost: $469.44</p>
+                <p>Gross Profit: $670.17</p>
+                <p class="ro-gp">GP%: 58.81%</p>
+            </div>
+            
+            <div class="closed-ro">
+                <h4>RO Number: 9381</h4>
+                <p>Revenue: $907.50</p>
+                <p>Cost: $466.00</p>
+                <p>Gross Profit: $441.50</p>
+                <p class="ro-gp">GP%: 48.65%</p>
+            </div>
+            
+            <div class="closed-ro">
+                <h4>RO Number: 11461</h4>
+                <p>Revenue: $153.58</p>
+                <p>Cost: $31.14</p>
+                <p>Gross Profit: $122.44</p>
+                <p class="ro-gp">GP%: 79.72%</p>
+            </div>
+            
+            </div>
+            
+            <h2>Today's Payments</h2>
+            <table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>Payment ID</th>
+      <th>Repair Order ID</th>
+      <th>Payment Type</th>
+      <th>Amount in USD</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>86223839</td>
+      <td>105664294</td>
+      <td>Credit Card - VISA</td>
+      <td>675.84</td>
+    </tr>
+    <tr>
+      <td>86223069</td>
+      <td>105641037</td>
+      <td>Credit Card - VISA</td>
+      <td>341.27</td>
+    </tr>
+    <tr>
+      <td>86221253</td>
+      <td>105956194</td>
+      <td>Cash</td>
+      <td>1192.21</td>
+    </tr>
+    <tr>
+      <td>86221104</td>
+      <td>104979915</td>
+      <td>Credit Card - VISA</td>
+      <td>947.78</td>
+    </tr>
+    <tr>
+      <td>86221065</td>
+      <td>105451909</td>
+      <td>Credit Card - VISA</td>
+      <td>193.52</td>
+    </tr>
+    <tr>
+      <td>86115777</td>
+      <td>105554712</td>
+      <td>Credit Card - MASTERCARD</td>
+      <td>656.08</td>
+    </tr>
+    <tr>
+      <td>86115768</td>
+      <td>105798403</td>
+      <td>Credit Card - VISA</td>
+      <td>38.83</td>
+    </tr>
+    <tr>
+      <td>86114881</td>
+      <td>105326687</td>
+      <td>Credit Card - VISA</td>
+      <td>635.97</td>
+    </tr>
+    <tr>
+      <td>86113789</td>
+      <td>105669863</td>
+      <td>Credit Card - MASTERCARD</td>
+      <td>1507.90</td>
+    </tr>
+    <tr>
+      <td>86113776</td>
+      <td>105657609</td>
+      <td>Credit Card - VISA</td>
+      <td>431.57</td>
+    </tr>
+    <tr>
+      <td>86113759</td>
+      <td>105643137</td>
+      <td>Credit Card - MASTERCARD</td>
+      <td>190.48</td>
+    </tr>
+    <tr>
+      <td>86113671</td>
+      <td>105704083</td>
+      <td>Credit Card - AMEX</td>
+      <td>123.94</td>
+    </tr>
+    <tr>
+      <td>86112403</td>
+      <td>105739431</td>
+      <td>Credit Card - VISA</td>
+      <td>1327.01</td>
+    </tr>
+    <tr>
+      <td>86112145</td>
+      <td>105817402</td>
+      <td>Credit Card - AMEX</td>
+      <td>38.83</td>
+    </tr>
+    <tr>
+      <td>86107881</td>
+      <td>105319658</td>
+      <td>Credit Card - VISA</td>
+      <td>1067.13</td>
+    </tr>
+    <tr>
+      <td>86107430</td>
+      <td>105665712</td>
+      <td>Credit Card - VISA</td>
+      <td>604.90</td>
+    </tr>
+    <tr>
+      <td>86107145</td>
+      <td>105594908</td>
+      <td>Credit Card - VISA</td>
+      <td>418.02</td>
+    </tr>
+    <tr>
+      <td>86102086</td>
+      <td>105657321</td>
+      <td>Credit Card - MASTERCARD</td>
+      <td>185.70</td>
+    </tr>
+    <tr>
+      <td>86101372</td>
+      <td>105588252</td>
+      <td>Credit Card - MASTERCARD</td>
+      <td>412.49</td>
+    </tr>
+    <tr>
+      <td>86100467</td>
+      <td>104030801</td>
+      <td>Credit Card - VISA</td>
+      <td>1018.05</td>
+    </tr>
+    <tr>
+      <td>86097084</td>
+      <td>105367022</td>
+      <td>Credit Card - DISCOVER</td>
+      <td>446.56</td>
+    </tr>
+    <tr>
+      <td>86096642</td>
+      <td>105276028</td>
+      <td>Credit Card - VISA</td>
+      <td>453.63</td>
+    </tr>
+    <tr>
+      <td>86096433</td>
+      <td>105590078</td>
+      <td>Credit Card - VISA</td>
+      <td>20.00</td>
+    </tr>
+    <tr>
+      <td>86096410</td>
+      <td>105588263</td>
+      <td>Credit Card - VISA</td>
+      <td>1413.46</td>
+    </tr>
+    <tr>
+      <td>86094922</td>
+      <td>105355270</td>
+      <td>Credit Card - AMEX</td>
+      <td>339.67</td>
+    </tr>
+    <tr>
+      <td>86094131</td>
+      <td>105658428</td>
+      <td>Credit Card - MASTERCARD</td>
+      <td>146.00</td>
+    </tr>
+  </tbody>
+</table>
+            
             <h2>Categories</h2>
             <table border="1" class="dataframe">
   <thead>
@@ -191,6 +440,240 @@
     </tr>
   </tbody>
 </table>
+
+            <h2>Technician Billable Hours (After 2024-08-30)</h2>
+            <table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>Technician ID</th>
+      <th>Billable Hours</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>30812731</td>
+      <td>2.50</td>
+    </tr>
+    <tr>
+      <td>30812747</td>
+      <td>2.25</td>
+    </tr>
+    <tr>
+      <td>30812755</td>
+      <td>2.00</td>
+    </tr>
+    <tr>
+      <td>30804253</td>
+      <td>1.00</td>
+    </tr>
+  </tbody>
+</table>
+            
+            <div class="section">
+                <h2>Services with Low Parts Margin (&lt;40%)</h2>
+                
+            <div class="low-margin-service">
+                <h4>RO #9381 - BODY</h4>
+                <ul>
+            
+                    <li class="low-margin-part">
+                        8W6898909 - RUNNING BOARD SECURE KIT<br>
+                        Cost: $80.00, Price: $120.00, Margin: 33.33%
+                    </li>
+                
+                </ul>
+            </div>
+            
+            <div class="low-margin-service">
+                <h4>RO #9381 - MOUNT, BALANCE & INSTALL TIRES</h4>
+                <ul>
+            
+                    <li class="low-margin-part">
+                        1557313 - ExtremeContact DWS06+<br>
+                        Cost: $193.00, Price: $241.25, Margin: 20.00%
+                    </li>
+                
+                </ul>
+            </div>
+            
+            <div class="low-margin-service">
+                <h4>RO #11592 - AIR AND FUEL</h4>
+                <ul>
+            
+                    <li class="low-margin-part">
+                        L51918861C - Oxygen Sensor (Rear)<br>
+                        Cost: $88.85, Price: $148.08, Margin: 40.00%
+                    </li>
+                
+                </ul>
+            </div>
+            
+            <div class="low-margin-service">
+                <h4>RO #12269 - Remove & Replace Radiator</h4>
+                <ul>
+            
+                    <li class="low-margin-part">
+                        227063-982 - UNIVERSAL 50/50 COOLANT<br>
+                        Cost: $8.66, Price: $14.43, Margin: 39.99%
+                    </li>
+                
+                    <li class="low-margin-part">
+                        PY8V15200 - Radiator<br>
+                        Cost: $348.67, Price: $498.10, Margin: 30.00%
+                    </li>
+                
+                </ul>
+            </div>
+            
+            <div class="low-margin-service">
+                <h4>RO #12269 - BATTERY</h4>
+                <ul>
+            
+                    <li class="low-margin-part">
+                        MT-35 - BATTERY<br>
+                        Cost: $123.00, Price: $204.95, Margin: 39.99%
+                    </li>
+                
+                </ul>
+            </div>
+            
+            <div class="low-margin-service">
+                <h4>RO #12342 - None</h4>
+                <ul>
+            
+                    <li class="low-margin-part">
+                        81561-47071 - TAIL LIGHT<br>
+                        Cost: $167.00, Price: $278.33, Margin: 40.00%
+                    </li>
+                
+                </ul>
+            </div>
+            
+            <div class="low-margin-service">
+                <h4>RO #11018 - OIL, LUBE  & FILTER CHANGE</h4>
+                <ul>
+            
+                    <li class="low-margin-part">
+                        57055XP - Engine Oil Filter<br>
+                        Cost: $6.69, Price: $11.15, Margin: 40.00%
+                    </li>
+                
+                </ul>
+            </div>
+            
+            <div class="low-margin-service">
+                <h4>RO #11018 - REAR BRAKE PADS AND ROTORS</h4>
+                <ul>
+            
+                    <li class="low-margin-part">
+                        7 - BRAKE ROTORS<br>
+                        Cost: $87.14, Price: $145.23, Margin: 40.00%
+                    </li>
+                
+                </ul>
+            </div>
+            
+            <div class="low-margin-service">
+                <h4>RO #11477 - REAR BRAKE PADS, ROTORS & CALIPERS</h4>
+                <ul>
+            
+                    <li class="low-margin-part">
+                        86540839 - HOSE,REAR BRAKE - LH<br>
+                        Cost: $42.81, Price: $56.33, Margin: 24.00%
+                    </li>
+                
+                    <li class="low-margin-part">
+                        86540838 - HOSE,REAR BRAKE - RH<br>
+                        Cost: $28.77, Price: $37.85, Margin: 23.99%
+                    </li>
+                
+                </ul>
+            </div>
+            
+            <div class="low-margin-service">
+                <h4>RO #11872 - ALTERNATOR</h4>
+                <ul>
+            
+                    <li class="low-margin-part">
+                        GL-8832 - Alternator - Remanufactured<br>
+                        Cost: $542.59, Price: $775.13, Margin: 30.00%
+                    </li>
+                
+                    <li class="low-margin-part">
+                        MTP48H6 - BATTERY<br>
+                        Cost: $140.71, Price: $123.72, Margin: -13.73%
+                    </li>
+                
+                </ul>
+            </div>
+            
+            <div class="low-margin-service">
+                <h4>RO #11872 - None</h4>
+                <ul>
+            
+                    <li class="low-margin-part">
+                        611008 - Wheel Lug Nut<br>
+                        Cost: $75.53, Price: $125.88, Margin: 40.00%
+                    </li>
+                
+                </ul>
+            </div>
+            
+            <div class="low-margin-service">
+                <h4>RO #11395 - IGNITION</h4>
+                <ul>
+            
+                    <li class="low-margin-part">
+                        8L5Z11572A - Switch Assy - Ignition<br>
+                        Cost: $85.77, Price: $114.36, Margin: 25.00%
+                    </li>
+                
+                    <li class="low-margin-part">
+                        1L3Z11582A - Lock<br>
+                        Cost: $66.13, Price: $88.18, Margin: 25.01%
+                    </li>
+                
+                </ul>
+            </div>
+            
+            <div class="low-margin-service">
+                <h4>RO #11541 - SCAN & DIAGNOSE COMPUTER SYSTEM</h4>
+                <ul>
+            
+                    <li class="low-margin-part">
+                        42031AG000 - FUEL CAP<br>
+                        Cost: $30.56, Price: $43.66, Margin: 30.00%
+                    </li>
+                
+                </ul>
+            </div>
+            
+            <div class="low-margin-service">
+                <h4>RO #11541 - BATTERY</h4>
+                <ul>
+            
+                    <li class="low-margin-part">
+                        MT35 - BATTERY<br>
+                        Cost: $123.00, Price: $204.95, Margin: 39.99%
+                    </li>
+                
+                </ul>
+            </div>
+            
+            <div class="low-margin-service">
+                <h4>RO #11625 - TEST CHARGING & STARTING SYSTEM</h4>
+                <ul>
+            
+                    <li class="low-margin-part">
+                        AC49AGM - BATTERY<br>
+                        Cost: $216.67, Price: $309.53, Margin: 30.00%
+                    </li>
+                
+                </ul>
+            </div>
+            
+            </div>
+            
         </body>
         </html>
         
