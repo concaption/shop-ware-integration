@@ -4,3 +4,7 @@ pandas
 matplotlib
 seaborn
 bs4
+fastapi==0.111.0
+uvicorn==0.30.1
+celery==5.4.0
+redis==5.0.7
