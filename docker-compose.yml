@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: shopware-reports-app
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+
+  redis:
+    image: redis:6-alpine
+    container_name: shopware-reports-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  redis_data:
