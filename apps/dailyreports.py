@@ -1,402 +1,102 @@
-from datetime import datetime, timedelta
-import pandas as pd
+import logging
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+import asyncio
+import requests
+from datetime import datetime
+from apps.shopwareapi import ShopWareAPI
+from apps.dailyreports import DailyReports
+from apps.weeklyreports import WeeklyReports
+from utils.utils import send_email
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
+
+app = FastAPI()
+
+# Initialize the scheduler
+scheduler = AsyncIOScheduler()
 
 
-class DailyReports:
-    def __init__(self, api):
-        self.api = api
+async def generate_daily_shopware_reports():
+    logger.info("Starting daily ShopWare report generation")
+    api = ShopWareAPI(
+        base_url='https://api.shop-ware.com',
+    )
 
-    def get_next_7_weekdays_appointments(self):
-        today = datetime.now().date()
-        end_date = today + timedelta(days=13)  # Look ahead 13 days to ensure we get 7 weekdays
+    daily_reports = DailyReports(api)
+    try:
+        daily_html = daily_reports.generate_html_report()
+        daily_reports.save_html_report(daily_html)
+        await send_email("Shop Ware Daily Report", daily_html)
+        logger.info("Daily ShopWare report generated and sent successfully")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to generate daily report: {e}", exc_info=True)
 
-        # Get appointments updated in the last 30 days to ensure we have recent data
-        updated_after = today - timedelta(days=30)
 
-        appointment_counts = {}
-        page = 1
-        while True:
-            appointments = self.api.get_appointments(updated_after, page=page)
+async def generate_weekly_shopware_reports():
+    logger.info("Starting weekly ShopWare report generation")
+    api = ShopWareAPI(
+        base_url='https://api.shop-ware.com',
+    )
 
-            for appointment in appointments['results']:
-                start_at = datetime.fromisoformat(appointment['start_at'].rstrip('Z')).date()
+    weekly_reports = WeeklyReports(api)
+    try:
+        weekly_html = weekly_reports.generate_html_report()
+        weekly_reports.save_html_report(weekly_html)
+        await send_email("Shop Ware Weekly Report", weekly_html, True)
+        logger.info("Weekly ShopWare report generated and sent successfully")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to generate weekly report: {e}", exc_info=True)
 
-                # Check if the appointment is within our date range and on a weekday
-                if today <= start_at <= end_date and start_at.weekday() < 5:
-                    appointment_counts[start_at] = appointment_counts.get(start_at, 0) + 1
 
-            # Check if we've processed all pages
-            if page >= appointments['total_pages']:
-                break
-            page += 1
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Starting up the application")
+    # Schedule daily report
+    scheduler.add_job(generate_daily_shopware_reports, CronTrigger(minute=0, hour=0))
+    logger.info("Scheduled daily report to run at midnight 1 of everyday")
 
-        return self._create_dataframe(today, appointment_counts)
+    # Schedule weekly report
+    scheduler.add_job(generate_weekly_shopware_reports, CronTrigger(day_of_week=6, hour=1, minute=0))
+    logger.info("Scheduled weekly report to run at 1:00 AM every Sunday")
 
-    def _create_dataframe(self, start_date, appointment_counts):
-        data = []
-        current_date = start_date
-        weekdays_count = 0
+    scheduler.start()
+    logger.info("Scheduler started")
 
-        while weekdays_count < 7:
-            if current_date.weekday() < 5:  # If it's a weekday
-                data.append({
-                    'Date': current_date.strftime("%Y-%m-%d"),
-                    'Day of Week': current_date.strftime("%A"),
-                    'Appointment Count': appointment_counts.get(current_date, 0)
-                })
-                weekdays_count += 1
-            current_date += timedelta(days=1)
 
-        return pd.DataFrame(data)
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("Shutting down the application")
+    scheduler.shutdown()
+    logger.info("Scheduler shut down")
 
-    def get_categories(self):
-        categories_data = self.api.get_categories()
-        categories = [{'Category ID': cat['id'], 'Category Name': cat['text']} for cat in categories_data['results']]
-        return pd.DataFrame(categories)
 
-    def get_payments(self):
-        updated_after = datetime.now().date() - timedelta(days=5)
-        payments_data = self.api.get_payments_of_day(updated_after)
-        payments = [{
-            'Payment ID': payment['id'],
-            'Repair Order ID': payment['repair_order_id'],
-            'Payment Type': payment['payment_type'],
-            'Amount in USD': payment['amount_cents'] / 100,  # Convert cents to dollars
-            # 'Created At': payment['created_at']
-        } for payment in payments_data['results']]
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = datetime.utcnow()
+    response = await call_next(request)
+    process_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+    logger.info(
+        f"Request: {request.method} {request.url.path} - Status: {response.status_code} - Process Time: {process_time:.2f}ms")
+    return response
 
-        if payments:
-            return pd.DataFrame(payments)
-        else:
-            return pd.DataFrame([{"Message": "No payments received today."}])
 
-    def get_tech_billable_hours(self, days=3):
-        today = datetime.now().date()
-        start_date = today - timedelta(days=days)
+@app.get("/")
+async def root():
+    logger.info("Root endpoint accessed")
+    return {"message": "ShopWare Reports Scheduler is running"}
 
-        repair_orders = []
-        page = 1
-        while True:
-            response = self.api.get_repair_orders(
-                page=page,
-                per_page=100,
-                closed_after=start_date.isoformat(),
-                # associations=['services', 'services.labors']
-            )
 
-            repair_orders.extend(response['results'])
+if __name__ == "__main__":
+    import uvicorn
 
-            if page >= response['total_pages']:
-                break
-            page += 1
-
-        tech_hours = {}
-        for ro in repair_orders:
-            for service in ro.get('services', []):
-                for labor in service.get('labors', []):
-                    tech_id = labor.get('technician_id')
-                    if labor.get('hours', 0):
-                        hours = labor.get('hours', 0)
-                        if tech_id:
-                            if tech_id not in tech_hours:
-                                tech_hours[tech_id] = 0
-                            tech_hours[tech_id] += hours
-
-        df = pd.DataFrame([(tech_id, hours) for tech_id, hours in tech_hours.items()],
-                          columns=['Technician ID', 'Billable Hours'])
-        df = df.sort_values('Billable Hours', ascending=False).reset_index(drop=True)
-
-        return df, start_date.strftime("%Y-%m-%d")
-
-    def get_low_margin_services(self, days=7, margin_threshold=0.4):
-        today = datetime.now().date()
-        start_date = today - timedelta(days=days)
-
-        low_margin_services = []
-        page = 1
-        while True:
-            response = self.api.get_repair_orders(
-                page=page,
-                per_page=100,
-                closed_after=start_date.isoformat()
-            )
-
-            for ro in response['results']:
-                for service in ro.get('services', []):
-                    service_low_margin_parts = []
-                    for part in service.get('parts', []):
-                        cost = part['cost_cents'] / 100
-                        price = part['quoted_price_cents'] / 100
-                        if cost > 0:
-                            margin = (price - cost) / price
-                            if margin < margin_threshold:
-                                service_low_margin_parts.append({
-                                    'part_number': part['number'],
-                                    'description': part['description'],
-                                    'cost': cost,
-                                    'price': price,
-                                    'margin': margin
-                                })
-
-                    if service_low_margin_parts:
-                        low_margin_services.append({
-                            'ro_number': ro['number'],
-                            'service_title': service['title'],
-                            'low_margin_parts': service_low_margin_parts
-                        })
-
-            if page >= response['total_pages']:
-                break
-            page += 1
-
-        return low_margin_services
-
-    def get_closed_sales_of_day(self):
-        today = (datetime.now() - timedelta(days=10)).date().isoformat()
-        total_revenue = 0
-        total_cost = 0
-        closed_ros = []
-
-        page = 1
-        while True:
-            response = self.api.get_repair_orders(
-                page=page,
-                per_page=100,
-                closed_after=f"{today}T00:00:00Z",
-                closed_before=f"{today}T23:59:59Z"
-            )
-
-            for ro in response['results']:
-                ro_revenue, ro_cost = self._calculate_ro_financials(ro)
-                total_revenue += ro_revenue
-                total_cost += ro_cost
-                closed_ros.append({
-                    'RO Number': ro['number'],
-                    'Revenue': ro_revenue,
-                    'Cost': ro_cost,
-                    'Gross Profit': ro_revenue - ro_cost,
-                    'GP%': (ro_revenue - ro_cost) / ro_revenue * 100 if ro_revenue > 0 else 0
-                })
-
-            if page >= response['total_pages']:
-                break
-            page += 1
-
-        gross_profit = total_revenue - total_cost
-        gp_percentage = (gross_profit / total_revenue * 100) if total_revenue > 0 else 0
-
-        return {
-            'Total Revenue': total_revenue,
-            'Total Cost': total_cost,
-            'Gross Profit': gross_profit,
-            'GP%': gp_percentage,
-            'Closed ROs': closed_ros
-        }
-
-    def _calculate_ro_financials(self, ro):
-        revenue = 0
-        cost = 0
-
-        for service in ro.get('services', []):
-            # Labor rate in cents
-            labor_rate_cents = service.get('labor_rate_cents', 0)
-
-            # Parts
-            for part in service.get('parts', []):
-                quoted_price = part.get('quoted_price_cents', 0)
-                quantity = part.get('quantity', 0)
-                cost_cents = part.get('cost_cents', 0)
-
-                revenue += quoted_price * quantity
-                cost += cost_cents * quantity
-
-            # Labor
-            for labor in service.get('labors', []):
-                if labor.get('hours', 0):
-                    hours = labor.get('hours', 0)
-                    revenue += hours * labor_rate_cents
-                # Assuming labor cost is 50% of revenue, adjust if you have actual labor cost data
-                    cost += hours * labor_rate_cents * 0.4
-
-            # Sublet
-            for sublet in service.get('sublets', []):
-                if sublet.get('price_cents', 0) and sublet.get('cost_cents', 0):
-                    revenue += sublet.get('price_cents', 0)
-                    cost += sublet.get('cost_cents', 0)
-
-            # Hazmat and Supply Fees (100% GP)
-            for hazmat in service.get('hazmats', []):
-                if hazmat.get('fee_cents', 0) and hazmat.get('quantity', 0):
-                    fee = hazmat.get('fee_cents', 0)
-                    quantity = hazmat.get('quantity', 0)
-                    revenue += fee * quantity
-
-        # Add supply fee to revenue
-        if ro.get('supply_fee_cents', 0):
-            revenue += ro.get('supply_fee_cents', 0)
-
-        # Apply discounts
-        if ro.get('part_discount_cents', 0):
-            revenue -= ro.get('part_discount_cents', 0)
-
-        if ro.get('labor_discount_cents', 0):
-            revenue -= ro.get('labor_discount_cents', 0)
-
-        return revenue / 100, cost / 100  # Convert cents to dollars
-
-    def generate_html_report(self):
-        appointments_df = self.get_next_7_weekdays_appointments()
-        categories_df = self.get_categories()
-        payments_df = self.get_payments()
-        # repair_orders_df = self.get_recent_repair_orders()
-        tech_hours_df, current_date = self.get_tech_billable_hours()
-        low_margin_services = self.get_low_margin_services()
-        low_margin_html = self._generate_low_margin_html(low_margin_services)
-        closed_sales = self.get_closed_sales_of_day()
-        closed_sales_html = self._generate_closed_sales_html(closed_sales)
-
-        html_content = f"""
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Shop-Ware Reports</title>
-            <style type="text/css">
-                body {{
-                    font-family: Arial, sans-serif;
-                    line-height: 1.6;
-                    color: #333333;
-                    max-width: 600px;
-                    margin: 0 auto;
-                    padding: 20px;
-                }}
-                h1, h2, h3 {{
-                    color: #2c3e50;
-                }}
-                table {{
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-bottom: 20px;
-                }}
-                th, td {{
-                    padding: 10px;
-                    text-align: left;
-                    border-bottom: 1px solid #dddddd;
-                }}
-                th {{
-                    background-color: #f2f2f2;
-                }}
-                .closed-sales-summary {{
-                    background-color: #f2f2f2;
-                    padding: 15px;
-                    margin-bottom: 20px;
-                }}
-                .closed-sales-summary h3 {{
-                    margin-top: 0;
-                    border-bottom: 2px solid #2c3e50;
-                    padding-bottom: 10px;
-                }}
-                .highlight {{
-                    font-weight: bold;
-                    color: #27ae60;
-                }}
-                .closed-ro {{
-                    background-color: #ffffff;
-                    border: 1px solid #dddddd;
-                    padding: 15px;
-                    margin-bottom: 15px;
-                }}
-                .closed-ro h4 {{
-                    margin-top: 0;
-                    color: #2c3e50;
-                    border-bottom: 1px solid #dddddd;
-                    padding-bottom: 5px;
-                }}
-                .ro-gp {{
-                    font-weight: bold;
-                    color: #27ae60;
-                }}
-            </style>
-        </head>
-        <body>
-            <h1>Shop-Ware Reports</h1>
-
-            <h2>Appointments for the Next 7 Weekdays</h2>
-            {appointments_df.to_html(index=False)}
-
-            <div class="section">
-                <h2>Closed Sales of the Day</h2>
-                {closed_sales_html}
-            </div>
-            
-            <h2>Today's Payments</h2>
-            {payments_df.to_html(index=False)}
-            
-            <h2>Categories</h2>
-            {categories_df.to_html(index=False)}
-
-            <h2>Technician Billable Hours (After {current_date})</h2>
-            {tech_hours_df.to_html(index=False)}
-            
-            <div class="section">
-                <h2>Services with Low Parts Margin (&lt;40%)</h2>
-                {low_margin_html}
-            </div>
-            
-        </body>
-        </html>
-        """
-
-        return html_content
-
-    def save_html_report(self, html_content, filename='appointment_report.html'):
-        with open(filename, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-        print(f"HTML report saved as {filename}")
-
-    def _generate_low_margin_html(self, low_margin_services):
-        html = ""
-        for service in low_margin_services:
-            html += f"""
-            <div class="low-margin-service">
-                <h4>RO #{service['ro_number']} - {service['service_title']}</h4>
-                <ul>
-            """
-            for part in service['low_margin_parts']:
-                html += f"""
-                    <li class="low-margin-part">
-                        {part['part_number']} - {part['description']}<br>
-                        Cost: ${part['cost']:.2f}, Price: ${part['price']:.2f}, Margin: {part['margin']:.2%}
-                    </li>
-                """
-            html += """
-                </ul>
-            </div>
-            """
-        return html
-
-    def _generate_closed_sales_html(self, closed_sales):
-        html = f"""
-        <div class="closed-sales-summary">
-            <h3>Closed Sales Summary</h3>
-            <p>Total Revenue: <span class="highlight">${closed_sales['Total Revenue']:.2f}</span></p>
-            <p>Total Cost: ${closed_sales['Total Cost']:.2f}</p>
-            <p>Gross Profit: <span class="highlight">${closed_sales['Gross Profit']:.2f}</span></p>
-            <p>GP%: <span class="highlight">{closed_sales['GP%']:.2f}%</span></p>
-        </div>
-        <h3>Closed Repair Orders:</h3>
-        """
-
-        for ro in closed_sales['Closed ROs']:
-            html += f"""
-            <div class="closed-ro">
-                <h4>RO Number: {ro['RO Number']}</h4>
-                <p>Revenue: ${ro['Revenue']:.2f}</p>
-                <p>Cost: ${ro['Cost']:.2f}</p>
-                <p>Gross Profit: ${ro['Gross Profit']:.2f}</p>
-                <p class="ro-gp">GP%: {ro['GP%']:.2f}%</p>
-            </div>
-            """
-
-        return html
+    logger.info("Starting the application")
+    uvicorn.run(app, host="0.0.0.0", port=8000)

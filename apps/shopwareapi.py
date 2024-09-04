@@ -59,3 +59,9 @@ class ShopWareAPI:
         response = requests.get(url, headers=self.get_headers(), params=params)
         response.raise_for_status()
         return response.json()
+
+    def get_staff_member(self, staff_id):
+        url = f"{self.base_url}/api/v1/tenants/{self.tenant_id}/staffs/{staff_id}"
+        response = requests.get(url, headers=self.get_headers())
+        response.raise_for_status()
+        return response.json()
