@@ -152,7 +152,7 @@ class DailyReports:
         return low_margin_services
 
     def get_closed_sales_of_day(self):
-        today = (datetime.now() - timedelta(days=3)).date().isoformat()
+        today = (datetime.now() - timedelta(days=10)).date().isoformat()
         total_revenue = 0
         total_cost = 0
         closed_ros = []
@@ -216,7 +216,7 @@ class DailyReports:
                     hours = labor.get('hours', 0)
                     revenue += hours * labor_rate_cents
                 # Assuming labor cost is 50% of revenue, adjust if you have actual labor cost data
-                # cost += hours * labor_rate_cents * 0.5
+                    cost += hours * labor_rate_cents * 0.4
 
             # Sublet
             for sublet in service.get('sublets', []):
