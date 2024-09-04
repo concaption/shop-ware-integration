@@ -1,20 +1,31 @@
-from celery import Celery
-import os
+import logging
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+import asyncio
 import requests
+from datetime import datetime
 from apps.shopwareapi import ShopWareAPI
 from apps.dailyreports import DailyReports
 from apps.weeklyreports import WeeklyReports
 from utils.utils import send_email
-from celery.exceptions import MaxRetriesExceededError
 
-# Initialize Celery app
-app = Celery('tasks', broker='redis://localhost:6379/0')
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
 
-# Load Celery configuration
-app.config_from_object('celeryconfig')
+app = FastAPI()
 
-@app.task(bind=True, max_retries=3, default_retry_delay=300)  # 5 minutes delay
-def generate_daily_shopware_reports(self):
+# Initialize the scheduler
+scheduler = AsyncIOScheduler()
+
+async def generate_daily_shopware_reports():
+    logger.info("Starting daily ShopWare report generation")
     api = ShopWareAPI(
         base_url='https://api.shop-ware.com',
     )
@@ -23,15 +34,13 @@ def generate_daily_shopware_reports(self):
     try:
         daily_html = daily_reports.generate_html_report()
         daily_reports.save_html_report(daily_html)
-        send_email("Shop Ware Daily Report", daily_html)
+        await send_email("Shop Ware Daily Report", daily_html)
+        logger.info("Daily ShopWare report generated and sent successfully")
     except requests.exceptions.RequestException as e:
-        try:
-            raise self.retry(exc=e)
-        except MaxRetriesExceededError:
-            print(f"Failed to generate daily report after 3 retries: {e}")
+        logger.error(f"Failed to generate daily report: {e}", exc_info=True)
 
-@app.task(bind=True, max_retries=3, default_retry_delay=600)  # 10 minutes delay
-def generate_weekly_shopware_reports(self):
+async def generate_weekly_shopware_reports():
+    logger.info("Starting weekly ShopWare report generation")
     api = ShopWareAPI(
         base_url='https://api.shop-ware.com',
     )
@@ -40,13 +49,45 @@ def generate_weekly_shopware_reports(self):
     try:
         weekly_html = weekly_reports.generate_html_report()
         weekly_reports.save_html_report(weekly_html)
-        send_email("Shop Ware Weekly Report", weekly_html, True)
+        await send_email("Shop Ware Weekly Report", weekly_html, True)
+        logger.info("Weekly ShopWare report generated and sent successfully")
     except requests.exceptions.RequestException as e:
-        try:
-            raise self.retry(exc=e)
-        except MaxRetriesExceededError:
-            print(f"Failed to generate weekly report after 3 retries: {e}")
+        logger.error(f"Failed to generate weekly report: {e}", exc_info=True)
+
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Starting up the application")
+    # Schedule daily report
+    scheduler.add_job(generate_daily_shopware_reports, CronTrigger(minute=0,hour=0))
+    logger.info("Scheduled daily report to run at midnight 1 of everyday")
+    
+    # Schedule weekly report
+    scheduler.add_job(generate_weekly_shopware_reports, CronTrigger(day_of_week=6, hour=1, minute=0))
+    logger.info("Scheduled weekly report to run at 1:00 AM every Sunday")
+    
+    scheduler.start()
+    logger.info("Scheduler started")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("Shutting down the application")
+    scheduler.shutdown()
+    logger.info("Scheduler shut down")
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = datetime.utcnow()
+    response = await call_next(request)
+    process_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+    logger.info(f"Request: {request.method} {request.url.path} - Status: {response.status_code} - Process Time: {process_time:.2f}ms")
+    return response
+
+@app.get("/")
+async def root():
+    logger.info("Root endpoint accessed")
+    return {"message": "ShopWare Reports Scheduler is running"}
 
 if __name__ == "__main__":
-    generate_daily_shopware_reports.delay()
-    generate_weekly_shopware_reports.delay()
+    import uvicorn
+    logger.info("Starting the application")
+    uvicorn.run(app, host="0.0.0.0", port=8000)
