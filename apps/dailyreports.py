@@ -183,7 +183,7 @@ class DailyReports:
                     'Revenue': ro_revenue,
                     'Cost': ro_cost,
                     'Gross Profit': ro_revenue - ro_cost,
-                    'GP%': (ro_revenue - ro_cost) / ro_revenue * 100 if ro_revenue > 0 else 0
+                    'Parts Margin %': (ro_revenue - ro_cost) / ro_revenue * 100 if ro_revenue > 0 else 0
                 })
 
             if page >= response['total_pages']:
@@ -191,13 +191,13 @@ class DailyReports:
             page += 1
 
         gross_profit = total_revenue - total_cost
-        gp_percentage = (gross_profit / total_revenue * 100) if total_revenue > 0 else 0
+        parts_margin = (gross_profit / total_revenue * 100) if total_revenue > 0 else 0
 
         return {
             'Total Revenue': total_revenue,
             'Total Cost': total_cost,
             'Gross Profit': gross_profit,
-            'GP%': gp_percentage,
+            'Parts Margin %': parts_margin,
             'Closed ROs': closed_ros
         }
 
@@ -219,25 +219,25 @@ class DailyReports:
                 cost += cost_cents * quantity
 
             # Labor
-            for labor in service.get('labors', []):
-                if labor.get('hours', 0):
-                    hours = labor.get('hours', 0)
-                    revenue += hours * labor_rate_cents
-                # Assuming labor cost is 50% of revenue, adjust if you have actual labor cost data
-                    cost += hours * labor_rate_cents * 0.4
+            # for labor in service.get('labors', []):
+            #     if labor.get('hours', 0):
+            #         hours = labor.get('hours', 0)
+            #         revenue += hours * labor_rate_cents
+            #     # Assuming labor cost is 50% of revenue, adjust if you have actual labor cost data
+            #         cost += hours * labor_rate_cents * 0.4
 
-            # Sublet
-            for sublet in service.get('sublets', []):
-                if sublet.get('price_cents', 0) and sublet.get('cost_cents', 0):
-                    revenue += sublet.get('price_cents', 0)
-                    cost += sublet.get('cost_cents', 0)
+            # # Sublet
+            # for sublet in service.get('sublets', []):
+            #     if sublet.get('price_cents', 0) and sublet.get('cost_cents', 0):
+            #         revenue += sublet.get('price_cents', 0)
+            #         cost += sublet.get('cost_cents', 0)
 
-            # Hazmat and Supply Fees (100% GP)
-            for hazmat in service.get('hazmats', []):
-                if hazmat.get('fee_cents', 0) and hazmat.get('quantity', 0):
-                    fee = hazmat.get('fee_cents', 0)
-                    quantity = hazmat.get('quantity', 0)
-                    revenue += fee * quantity
+            # # Hazmat and Supply Fees (100% GP)
+            # for hazmat in service.get('hazmats', []):
+            #     if hazmat.get('fee_cents', 0) and hazmat.get('quantity', 0):
+            #         fee = hazmat.get('fee_cents', 0)
+            #         quantity = hazmat.get('quantity', 0)
+            #         revenue += fee * quantity
 
         # Add supply fee to revenue
         if ro.get('supply_fee_cents', 0):
@@ -391,7 +391,7 @@ class DailyReports:
             <p>Total Revenue: <span class="highlight">${closed_sales['Total Revenue']:.2f}</span></p>
             <p>Total Cost: ${closed_sales['Total Cost']:.2f}</p>
             <p>Gross Profit: <span class="highlight">${closed_sales['Gross Profit']:.2f}</span></p>
-            <p>GP%: <span class="highlight">{closed_sales['GP%']:.2f}%</span></p>
+            <p>Parts Margin %: <span class="highlight">{closed_sales['Parts Margin %']:.2f}%</span></p>
         </div>
         <h3>Closed Repair Orders:</h3>
         """
@@ -403,7 +403,7 @@ class DailyReports:
                 <p>Revenue: ${ro['Revenue']:.2f}</p>
                 <p>Cost: ${ro['Cost']:.2f}</p>
                 <p>Gross Profit: ${ro['Gross Profit']:.2f}</p>
-                <p class="ro-gp">GP%: {ro['GP%']:.2f}%</p>
+                <p class="ro-gp">Parts Margin %: {ro['Parts Margin %']:.2f}%</p>
             </div>
             """
 

@@ -34,7 +34,7 @@ async def generate_daily_shopware_reports():
     try:
         daily_html = daily_reports.generate_html_report()
         daily_reports.save_html_report(daily_html)
-        await send_email("Shop Ware Daily Report", daily_html)
+        send_email("Shop Ware Daily Report", daily_html)
         logger.info("Daily ShopWare report generated and sent successfully")
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to generate daily report: {e}", exc_info=True)
@@ -49,7 +49,7 @@ async def generate_weekly_shopware_reports():
     try:
         weekly_html = weekly_reports.generate_html_report()
         weekly_reports.save_html_report(weekly_html)
-        await send_email("Shop Ware Weekly Report", weekly_html, True)
+        send_email("Shop Ware Weekly Report", weekly_html, True)
         logger.info("Weekly ShopWare report generated and sent successfully")
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to generate weekly report: {e}", exc_info=True)
@@ -58,7 +58,7 @@ async def generate_weekly_shopware_reports():
 async def startup_event():
     logger.info("Starting up the application")
     # Schedule daily report
-    scheduler.add_job(generate_daily_shopware_reports, CronTrigger(minute=0,hour=0))
+    scheduler.add_job(generate_daily_shopware_reports, CronTrigger(hour=0, minute=0))
     logger.info("Scheduled daily report to run at midnight 1 of everyday")
     
     # Schedule weekly report
