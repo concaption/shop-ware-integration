@@ -163,6 +163,8 @@ class DailyReports:
         today = (datetime.now() - timedelta(days=1)).date().isoformat()
         total_revenue = 0
         total_cost = 0
+        total_parts_revenue= 0
+        total_parts_cost= 0
         closed_ros = []
 
         page = 1
@@ -171,19 +173,22 @@ class DailyReports:
                 page=page,
                 per_page=100,
                 closed_after=f"{today}T00:00:00Z",
-                closed_before=f"{today}T23:59:59Z"
+                status= 'invoice'
             )
 
             for ro in response['results']:
-                ro_revenue, ro_cost = self._calculate_ro_financials(ro)
+                ro_revenue, ro_cost , part_revenue , part_cost = self._calculate_ro_financials(ro)
                 total_revenue += ro_revenue
                 total_cost += ro_cost
+                total_parts_revenue += part_revenue
+                total_parts_cost += part_cost
                 closed_ros.append({
                     'RO Number': ro['number'],
                     'Revenue': ro_revenue,
                     'Cost': ro_cost,
                     'Gross Profit': ro_revenue - ro_cost,
-                    'Parts Margin %': (ro_revenue - ro_cost) / ro_revenue * 100 if ro_revenue > 0 else 0
+                    'Parts Margin %': (part_revenue - part_cost) / part_revenue * 100 if part_revenue > 0 else 0,
+                    'RO Link':"https://bob-s-automotive-services.shop-ware.com/work_orders/" + str(ro['id'])
                 })
 
             if page >= response['total_pages']:
@@ -191,7 +196,8 @@ class DailyReports:
             page += 1
 
         gross_profit = total_revenue - total_cost
-        parts_margin = (gross_profit / total_revenue * 100) if total_revenue > 0 else 0
+
+        parts_margin = ((total_parts_revenue - total_parts_cost) / total_parts_revenue * 100) if total_parts_revenue > 0 else 0
 
         return {
             'Total Revenue': total_revenue,
@@ -204,7 +210,9 @@ class DailyReports:
     def _calculate_ro_financials(self, ro):
         revenue = 0
         cost = 0
-
+        part_revenue=0
+        part_cost=0
+        # print("RO_ID: ",ro.get('id',None))
         for service in ro.get('services', []):
             # Labor rate in cents
             labor_rate_cents = service.get('labor_rate_cents', 0)
@@ -216,28 +224,30 @@ class DailyReports:
                 cost_cents = part.get('cost_cents', 0)
 
                 revenue += quoted_price * quantity
+                part_revenue+=quoted_price * quantity
                 cost += cost_cents * quantity
+                part_cost=cost_cents * quantity
 
             # Labor
-            # for labor in service.get('labors', []):
-            #     if labor.get('hours', 0):
-            #         hours = labor.get('hours', 0)
-            #         revenue += hours * labor_rate_cents
-            #     # Assuming labor cost is 50% of revenue, adjust if you have actual labor cost data
-            #         cost += hours * labor_rate_cents * 0.4
+            for labor in service.get('labors', []):
+                if labor.get('hours', 0):
+                    hours = labor.get('hours', 0)
+                    revenue += hours * labor_rate_cents
+                # Assuming labor cost is 50% of revenue, adjust if you have actual labor cost data
+                    # cost += hours * labor_rate_cents * 0.4
 
-            # # Sublet
-            # for sublet in service.get('sublets', []):
-            #     if sublet.get('price_cents', 0) and sublet.get('cost_cents', 0):
-            #         revenue += sublet.get('price_cents', 0)
-            #         cost += sublet.get('cost_cents', 0)
+            # Sublet
+            for sublet in service.get('sublets', []):
+                if sublet.get('price_cents', 0) and sublet.get('cost_cents', 0):
+                    revenue += sublet.get('price_cents', 0)
+                    cost += sublet.get('cost_cents', 0)
 
-            # # Hazmat and Supply Fees (100% GP)
-            # for hazmat in service.get('hazmats', []):
-            #     if hazmat.get('fee_cents', 0) and hazmat.get('quantity', 0):
-            #         fee = hazmat.get('fee_cents', 0)
-            #         quantity = hazmat.get('quantity', 0)
-            #         revenue += fee * quantity
+            # Hazmat and Supply Fees (100% GP)
+            for hazmat in service.get('hazmats', []):
+                if hazmat.get('fee_cents', 0) and hazmat.get('quantity', 0):
+                    fee = hazmat.get('fee_cents', 0)
+                    quantity = hazmat.get('quantity', 0)
+                    revenue += fee * quantity
 
         # Add supply fee to revenue
         if ro.get('supply_fee_cents', 0):
@@ -250,7 +260,7 @@ class DailyReports:
         if ro.get('labor_discount_cents', 0):
             revenue -= ro.get('labor_discount_cents', 0)
 
-        return revenue / 100, cost / 100  # Convert cents to dollars
+        return revenue / 100, cost / 100 ,part_revenue / 100 , part_cost / 100 # Convert cents to dollars
 
     def generate_html_report(self):
         appointments_df = self.get_next_7_weekdays_appointments()
@@ -399,7 +409,7 @@ class DailyReports:
         for ro in closed_sales['Closed ROs']:
             html += f"""
             <div class="closed-ro">
-                <h4>RO Number: {ro['RO Number']}</h4>
+                <h4>RO Number: <a href="{ro['RO Link']}">{ro['RO Number']}</a></h4>
                 <p>Revenue: ${ro['Revenue']:.2f}</p>
                 <p>Cost: ${ro['Cost']:.2f}</p>
                 <p>Gross Profit: ${ro['Gross Profit']:.2f}</p>

@@ -66,7 +66,7 @@ async def startup_event():
     logger.info("Scheduled weekly report to run at 1:00 AM every Sunday")
     
     scheduler.start()
-    logger.info("Scheduler started")
+    logger.info("Scheduler started")  
 
 @app.on_event("shutdown")
 async def shutdown_event():
