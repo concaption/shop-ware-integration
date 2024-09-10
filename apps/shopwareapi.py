@@ -65,3 +65,15 @@ class ShopWareAPI:
         response = requests.get(url, headers=self.get_headers())
         response.raise_for_status()
         return response.json()
+
+    def get_inventory(self, inventory_item_id):
+        url = f"{self.base_url}/api/v1/tenants/{self.tenant_id}/inventories/{inventory_item_id}"
+        response = requests.get(url, headers=self.get_headers())
+        response.raise_for_status()
+        return response.json()
+    
+    def is_tyre(self,inventory_item_id):
+        inventory_item=self.get_inventory(inventory_item_id)
+        if inventory_item.get("part_type","None") == "Tire" or inventory_item.get("reporting_category","None") == "Tires":
+            return True
+        return False

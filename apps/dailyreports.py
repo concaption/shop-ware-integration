@@ -133,18 +133,19 @@ class DailyReports:
                 for service in ro.get('services', []):
                     service_low_margin_parts = []
                     for part in service.get('parts', []):
-                        cost = part['cost_cents'] / 100
-                        price = part['quoted_price_cents'] / 100
-                        if cost > 0:
-                            margin = (price - cost) / price
-                            if margin < margin_threshold:
-                                service_low_margin_parts.append({
-                                    'part_number': part['number'],
-                                    'description': part['description'],
-                                    'cost': cost,
-                                    'price': price,
-                                    'margin': margin
-                                })
+                        if not self.api.is_tyre(part['part_inventory_id']): #Check for tire
+                            cost = part['cost_cents'] / 100
+                            price = part['quoted_price_cents'] / 100
+                            if cost > 0:
+                                margin = (price - cost) / price
+                                if margin < margin_threshold:
+                                    service_low_margin_parts.append({
+                                        'part_number': part['number'],
+                                        'description': part['description'],
+                                        'cost': cost,
+                                        'price': price,
+                                        'margin': margin
+                                    })
 
                     if service_low_margin_parts:
                         low_margin_services.append({
