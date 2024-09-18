@@ -58,7 +58,7 @@ async def generate_weekly_shopware_reports():
 async def startup_event():
     logger.info("Starting up the application")
     # Schedule daily report
-    scheduler.add_job(generate_daily_shopware_reports, CronTrigger(hour=0, minute=0))
+    scheduler.add_job(generate_daily_shopware_reports, CronTrigger())
     logger.info("Scheduled daily report to run at midnight 1 of everyday")
     
     # Schedule weekly report
@@ -90,4 +90,4 @@ async def root():
 if __name__ == "__main__":
     import uvicorn
     logger.info("Starting the application")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8005)

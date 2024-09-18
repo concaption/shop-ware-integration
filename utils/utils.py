@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date,timedelta
 from dotenv import load_dotenv
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -45,7 +45,7 @@ def create_email_with_images(message, html_content):
 
 def send_email(subject, html_content, hasimage=False):
     message = MIMEMultipart("alternative")
-    message["Subject"] = f"{subject} - {date.today()}"
+    message["Subject"] = f"{subject} - {date.today() - timedelta(days=1)}"
     message["From"] = f"{os.getenv('SENDER_NAME')} <{os.getenv('SENDER_EMAIL')}>"
     message["To"] = os.getenv('RECIPIENT_EMAIL')
     # Create the HTML part of the message

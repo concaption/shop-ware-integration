@@ -166,6 +166,8 @@ class DailyReports:
         total_cost = 0
         total_parts_revenue= 0
         total_parts_cost= 0
+        total_tire_revenue = 0
+        total_tire_cost = 0
         closed_ros = []
 
         page = 1
@@ -178,17 +180,27 @@ class DailyReports:
             )
 
             for ro in response['results']:
-                ro_revenue, ro_cost , part_revenue , part_cost = self._calculate_ro_financials(ro)
+                ro_revenue, ro_cost , part_revenue , part_cost , tire_revenue , tire_cost = self._calculate_ro_financials(ro)
                 total_revenue += ro_revenue
                 total_cost += ro_cost
                 total_parts_revenue += part_revenue
                 total_parts_cost += part_cost
+                total_tire_revenue += tire_revenue
+                total_tire_cost += tire_cost
+            #     print(f'''RO Number: {ro['number']} 
+            #         Revenue : {ro_revenue},Part Cost : {part_cost}
+            #         Parts + Tires Cost: {ro_cost},
+            #         Parts + Tires Margin': {ro_revenue - ro_cost},
+            #         Parts Margin %: {(part_revenue - part_cost) / part_revenue * 100 if part_revenue > 0 else 0},
+            #         Tires Margin %: {(tire_revenue - tire_cost) / tire_revenue * 100 if tire_revenue > 0 else 0},
+            #         RO Link':"https://bob-s-automotive-services.shop-ware.com/work_orders/" + {str(ro['id'])}''')
                 closed_ros.append({
                     'RO Number': ro['number'],
                     'Revenue': ro_revenue,
-                    'Cost': ro_cost,
-                    'Gross Profit': ro_revenue - ro_cost,
+                    'Parts + Tires Cost': ro_cost,
+                    'Parts + Tires Margin': ro_revenue - ro_cost,
                     'Parts Margin %': (part_revenue - part_cost) / part_revenue * 100 if part_revenue > 0 else 0,
+                    'Tires Margin %': (tire_revenue - tire_cost) / tire_revenue * 100 if tire_revenue > 0 else 0,
                     'RO Link':"https://bob-s-automotive-services.shop-ware.com/work_orders/" + str(ro['id'])
                 })
 
@@ -196,15 +208,16 @@ class DailyReports:
                 break
             page += 1
 
-        gross_profit = total_revenue - total_cost
-
+        part_n_tire_marg = (total_tire_revenue + total_parts_revenue) - (total_parts_cost+total_tire_cost)
+        print(f"Total Parts Revenue: {total_parts_revenue} and Total Parts Cost : {total_parts_cost}")
         parts_margin = ((total_parts_revenue - total_parts_cost) / total_parts_revenue * 100) if total_parts_revenue > 0 else 0
-
+        tire_margin  = ((total_tire_revenue - total_tire_cost) / total_tire_revenue * 100) if total_tire_revenue > 0 else 0
         return {
             'Total Revenue': total_revenue,
-            'Total Cost': total_cost,
-            'Gross Profit': gross_profit,
-            'Parts Margin %': parts_margin,
+            'Total Parts + Tires Cost': total_cost,
+            'Total Parts + Tires Margin': part_n_tire_marg,
+            'Total Parts Margin %': parts_margin,
+            'Total Tires Margin %': tire_margin,
             'Closed ROs': closed_ros
         }
 
@@ -213,6 +226,8 @@ class DailyReports:
         cost = 0
         part_revenue=0
         part_cost=0
+        tire_revenue=0
+        tire_cost=0
         # print("RO_ID: ",ro.get('id',None))
         for service in ro.get('services', []):
             # Labor rate in cents
@@ -225,9 +240,14 @@ class DailyReports:
                 cost_cents = part.get('cost_cents', 0)
 
                 revenue += quoted_price * quantity
-                part_revenue+=quoted_price * quantity
                 cost += cost_cents * quantity
-                part_cost=cost_cents * quantity
+                
+                if not self.api.is_tyre(part['part_inventory_id']):# check for tires
+                    part_revenue+=quoted_price * quantity
+                    part_cost+=cost_cents * quantity
+                else :                                             # tire calculation
+                    tire_revenue += quoted_price * quantity
+                    tire_cost+=cost_cents * quantity
 
             # Labor
             for labor in service.get('labors', []):
@@ -239,8 +259,9 @@ class DailyReports:
 
             # Sublet
             for sublet in service.get('sublets', []):
-                if sublet.get('price_cents', 0) and sublet.get('cost_cents', 0):
+                if sublet.get('price_cents', 0) :
                     revenue += sublet.get('price_cents', 0)
+                if sublet.get('cost_cents', 0):
                     cost += sublet.get('cost_cents', 0)
 
             # Hazmat and Supply Fees (100% GP)
@@ -253,15 +274,20 @@ class DailyReports:
         # Add supply fee to revenue
         if ro.get('supply_fee_cents', 0):
             revenue += ro.get('supply_fee_cents', 0)
-
+        
         # Apply discounts
         if ro.get('part_discount_cents', 0):
-            revenue -= ro.get('part_discount_cents', 0)
+            revenue -= float(ro.get('part_discount_cents', 0))
 
         if ro.get('labor_discount_cents', 0):
-            revenue -= ro.get('labor_discount_cents', 0)
+            revenue -= float(ro.get('labor_discount_cents', 0))
 
-        return revenue / 100, cost / 100 ,part_revenue / 100 , part_cost / 100 # Convert cents to dollars
+        return (revenue / 100,
+               cost / 100 ,
+               part_revenue / 100 ,
+               part_cost / 100,
+               tire_revenue / 100,
+               tire_cost / 100 )      #Convert cents to dollars
 
     def generate_html_report(self):
         appointments_df = self.get_next_7_weekdays_appointments()
@@ -400,9 +426,10 @@ class DailyReports:
         <div class="closed-sales-summary">
             <h3>Closed Sales Summary</h3>
             <p>Total Revenue: <span class="highlight">${closed_sales['Total Revenue']:.2f}</span></p>
-            <p>Total Cost: ${closed_sales['Total Cost']:.2f}</p>
-            <p>Gross Profit: <span class="highlight">${closed_sales['Gross Profit']:.2f}</span></p>
-            <p>Parts Margin %: <span class="highlight">{closed_sales['Parts Margin %']:.2f}%</span></p>
+            <p>Parts + Tires Cost : ${closed_sales['Total Parts + Tires Cost']:.2f}</p>
+            <p>Parts + Tires Margin ($): <span class="highlight">${closed_sales['Total Parts + Tires Margin']:.2f}</span></p>
+            <p>Parts Margin %: <span class="highlight">{closed_sales['Total Parts Margin %']:.2f}%</span></p>
+            <p>Tires Margin %: <span class="highlight">{closed_sales['Total Tires Margin %']:.2f}%</span></p>
         </div>
         <h3>Closed Repair Orders:</h3>
         """
@@ -412,9 +439,10 @@ class DailyReports:
             <div class="closed-ro">
                 <h4>RO Number: <a href="{ro['RO Link']}">{ro['RO Number']}</a></h4>
                 <p>Revenue: ${ro['Revenue']:.2f}</p>
-                <p>Cost: ${ro['Cost']:.2f}</p>
-                <p>Gross Profit: ${ro['Gross Profit']:.2f}</p>
+                <p>Parts + Tires Cost ($): ${ro['Parts + Tires Cost']:.2f}</p>
+                <p>Parts + Tires Margin ($): ${ro['Parts + Tires Margin']:.2f}</p>
                 <p class="ro-gp">Parts Margin %: {ro['Parts Margin %']:.2f}%</p>
+                <p class="ro-gp">Tires Margin %: {ro['Tires Margin %']:.2f}%</p>
             </div>
             """
 
