@@ -58,7 +58,7 @@ async def generate_weekly_shopware_reports():
 async def startup_event():
     logger.info("Starting up the application")
     # Schedule daily report
-    scheduler.add_job(generate_daily_shopware_reports, CronTrigger())
+    scheduler.add_job(generate_daily_shopware_reports, CronTrigger(hour=0, minute=0))
     logger.info("Scheduled daily report to run at midnight 1 of everyday")
     
     # Schedule weekly report
