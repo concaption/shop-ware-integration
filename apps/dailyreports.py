@@ -160,6 +160,34 @@ class DailyReports:
 
         return low_margin_services
 
+    def get_car_count (self,closed_sales):
+        today = (datetime.now() - timedelta(days=1)).date().isoformat()
+        count=0
+        page = 1
+        while True:
+            response = self.api.get_repair_orders(
+                page=page,
+                per_page=100,
+                closed_after=f"{today}T00:00:00Z",
+            )
+            for car in  response['results']:
+                count =  count + 1
+            
+            if page >= response['total_pages']:
+                break
+            page += 1
+
+        return count
+
+    def get_avg_ro (self,closed_sales,car_count):
+        return closed_sales['Total Revenue']/car_count if car_count > 0 else 0
+
+    def get_total_billable(self,tech_hours) :
+        return tech_hours['Billable Hours'].sum()
+
+    def get_labour_efficiency(self , tech_hours):
+        return (tech_hours['Billable Hours'].sum() / 40 ) *100
+
     def get_closed_sales_of_day(self):
         today = (datetime.now() - timedelta(days=1)).date().isoformat()
         total_revenue = 0
@@ -291,14 +319,15 @@ class DailyReports:
 
     def generate_html_report(self):
         appointments_df = self.get_next_7_weekdays_appointments()
-        categories_df = self.get_categories()
+        # categories_df = self.get_categories()
         payments_df = self.get_payments()
         # repair_orders_df = self.get_recent_repair_orders()
         tech_hours_df, current_date = self.get_tech_billable_hours()
         low_margin_services = self.get_low_margin_services()
         low_margin_html = self._generate_low_margin_html(low_margin_services)
         closed_sales = self.get_closed_sales_of_day()
-        closed_sales_html = self._generate_closed_sales_html(closed_sales)
+
+        closed_sales_html = self._generate_closed_sales_html(closed_sales,tech_hours_df)
 
         html_content = f"""
         <!DOCTYPE html>
@@ -378,9 +407,6 @@ class DailyReports:
             <h2>Today's Payments</h2>
             {payments_df.to_html(index=False)}
             
-            <h2>Categories</h2>
-            {categories_df.to_html(index=False)}
-
             <h2>Technician Billable Hours (After {current_date})</h2>
             {tech_hours_df.to_html(index=False)}
             
@@ -421,7 +447,10 @@ class DailyReports:
             """
         return html
 
-    def _generate_closed_sales_html(self, closed_sales):
+    def _generate_closed_sales_html(self, closed_sales,tech_hours_df):
+        car_count= self.get_car_count(closed_sales)
+        avg_ro= self.get_avg_ro(closed_sales,car_count)
+        labor_efficiency=self.get_labour_efficiency(tech_hours_df)
         html = f"""
         <div class="closed-sales-summary">
             <h3>Closed Sales Summary</h3>
@@ -430,6 +459,10 @@ class DailyReports:
             <p>Parts + Tires Margin ($): <span class="highlight">${closed_sales['Total Parts + Tires Margin']:.2f}</span></p>
             <p>Parts Margin %: <span class="highlight">{closed_sales['Total Parts Margin %']:.2f}%</span></p>
             <p>Tires Margin %: <span class="highlight">{closed_sales['Total Tires Margin %']:.2f}%</span></p>
+            <p>Car Count: <span class="highlight">{car_count}</span></p>
+            <p>Average RO: <span class="highlight">{avg_ro:.2f}</span></p>
+            <p>Labor Efficeincy %: <span class="highlight">{labor_efficiency:.2f}%</span></p>
+
         </div>
         <h3>Closed Repair Orders:</h3>
         """
