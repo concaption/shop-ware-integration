@@ -9,7 +9,9 @@ import base64
 from bs4 import BeautifulSoup
 import uuid
 
+
 load_dotenv()
+
 
 
 def extract_images_from_html(html_content):
