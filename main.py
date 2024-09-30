@@ -10,7 +10,7 @@ from apps.shopwareapi import ShopWareAPI
 from apps.dailyreports import DailyReports
 from apps.weeklyreports import WeeklyReports
 from utils.utils import send_email
-
+import pytz
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -57,13 +57,15 @@ async def generate_weekly_shopware_reports():
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting up the application")
+    # EST Zone
+    est = pytz.timezone("America/New_York")
     # Schedule daily report
-    # scheduler.add_job(generate_daily_shopware_reports, CronTrigger(hour=0, minute=0,day_of_week='mon-fri'))
-    scheduler.add_job(generate_daily_shopware_reports, CronTrigger())
-    logger.info("Scheduled daily report to run at midnight 1 of everyday")
+    scheduler.add_job(generate_daily_shopware_reports, CronTrigger(hour=20, minute=0, day_of_week='mon-fri',timezone=est))
+    # scheduler.add_job(generate_daily_shopware_reports, CronTrigger())
+     logger.info("Scheduled daily report to run at 8 PM EST, Monday to Friday")
     
     # Schedule weekly report
-    scheduler.add_job(generate_weekly_shopware_reports, CronTrigger(day_of_week=6, hour=1, minute=0))
+    scheduler.add_job(generate_weekly_shopware_reports, CronTrigger(day_of_week=6, hour=1, minute=0,timezone=est))
     logger.info("Scheduled weekly report to run at 1:00 AM every Sunday")
     
     scheduler.start()
