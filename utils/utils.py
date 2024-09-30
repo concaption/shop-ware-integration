@@ -49,7 +49,10 @@ def send_email(subject, html_content, hasimage=False):
     message = MIMEMultipart("alternative")
     message["Subject"] = f"{subject} - {date.today() - timedelta(days=1)}"
     message["From"] = f"{os.getenv('SENDER_NAME')} <{os.getenv('SENDER_EMAIL')}>"
-    message["To"] = os.getenv('RECIPIENT_EMAIL')
+    # Extract email addresses by splitting the string at semicolons
+    recipient_str = os.getenv('RECIPIENT_EMAIL')
+    recipients = recipient_str.split(';')  # Split the string by semicolons to get the list of emails
+    
     # Create the HTML part of the message
     if hasimage:
         message = create_email_with_images(message, html_content)
@@ -60,7 +63,11 @@ def send_email(subject, html_content, hasimage=False):
         with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
             server.starttls()
             server.login(os.getenv('SMTP_USERNAME'), os.getenv('SMTP_PASSWORD'))
-            server.send_message(message)
-        print("Email sent successfully")
+            # Loop through the list of recipients and send the email to each one
+            for recipient in recipients:
+                recipient = recipient.strip()  # Remove any leading/trailing whitespace
+                message["To"] = recipient
+                server.send_message(message)
+        print("Emails sent successfully")
     except Exception as e:
         print(f"An error occurred while sending the email: {e}")
