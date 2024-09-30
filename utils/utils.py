@@ -52,6 +52,10 @@ def send_email(subject, html_content, hasimage=False):
     # Extract email addresses by splitting the string at semicolons
     recipient_str = os.getenv('RECIPIENT_EMAIL')
     recipients = recipient_str.split(';')  # Split the string by semicolons to get the list of emails
+
+    # Join the email addresses into a single string separated by commas
+    message["To"] = ", ".join([recipient.strip() for recipient in recipients])
+
     
     # Create the HTML part of the message
     if hasimage:
@@ -60,14 +64,13 @@ def send_email(subject, html_content, hasimage=False):
         html_part = MIMEText(html_content, "html")
         message.attach(html_part)
     try:
+        # Establish the connection and send the email
         with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT'))) as server:
             server.starttls()
             server.login(os.getenv('SMTP_USERNAME'), os.getenv('SMTP_PASSWORD'))
-            # Loop through the list of recipients and send the email to each one
-            for recipient in recipients:
-                recipient = recipient.strip()  # Remove any leading/trailing whitespace
-                message["To"] = recipient
-                server.send_message(message)
-        print("Emails sent successfully")
+            server.send_message(message)
+        
+        print("Email sent successfully to all recipients")
+    
     except Exception as e:
         print(f"An error occurred while sending the email: {e}")
