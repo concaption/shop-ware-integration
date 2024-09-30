@@ -62,7 +62,7 @@ async def startup_event():
     # Schedule daily report
     scheduler.add_job(generate_daily_shopware_reports, CronTrigger(hour=20, minute=0, day_of_week='mon-fri',timezone=est))
     # scheduler.add_job(generate_daily_shopware_reports, CronTrigger())
-     logger.info("Scheduled daily report to run at 8 PM EST, Monday to Friday")
+    logger.info("Scheduled daily report to run at 8 PM EST, Monday to Friday")
     
     # Schedule weekly report
     scheduler.add_job(generate_weekly_shopware_reports, CronTrigger(day_of_week=6, hour=1, minute=0,timezone=est))
