@@ -254,8 +254,8 @@ class DailyReports:
                     closed_ros.append({
                         'RO Number': ro['number'],
                         'Revenue': ro_revenue,
-                        'Parts + Tires Cost': ro_cost,
-                        'Parts + Tires Margin': ro_revenue - ro_cost,
+                        'Parts + Tires Cost': part_cost + tire_cost,
+                        'Parts + Tires Margin': (part_revenue + tire_revenue) - (part_cost + tire_cost),
                         'Parts Margin %': (part_revenue - part_cost) / part_revenue * 100 if part_revenue > 0 else 0,
                         'Tires Margin %': (tire_revenue - tire_cost) / tire_revenue * 100 if tire_revenue > 0 else 0,
                         'RO Link':"https://bob-s-automotive-services.shop-ware.com/work_orders/" + str(ro['id'])
