@@ -73,7 +73,10 @@ class ShopWareAPI:
         return response.json()
     
     def is_tyre(self,inventory_item_id):
-        inventory_item=self.get_inventory(inventory_item_id)
-        if inventory_item.get("part_type","None") == "Tire" or inventory_item.get("reporting_category","None") == "Tires":
-            return True
+        try:
+            inventory_item=self.get_inventory(inventory_item_id)
+            if inventory_item.get("part_type","None") == "Tire" or inventory_item.get("reporting_category","None") == "Tires":
+                return True
+        except:
+            ...
         return False

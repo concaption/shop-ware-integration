@@ -4,6 +4,10 @@ import matplotlib.pyplot as plt
 import base64
 import io
 import seaborn as sns
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class WeeklyReports:
@@ -107,93 +111,173 @@ class WeeklyReports:
         closed_ros = []
 
         page = 1
-        while True:
-            response = self.api.get_repair_orders(
-                page=page,
-                per_page=100,
-                closed_after=f"{specific_date}T00:00:00Z",
-                closed_before=f"{specific_date}T23:59:59Z"
-            )
+        try:
+            while True:
+                response = self.api.get_repair_orders(
+                    page=page,
+                    per_page=100,
+                    closed_after=f"{specific_date}T00:00:00Z",
+                    status='invoice'
+                )
+                total_revenue = 0
+                total_cost = 0
+                total_parts_revenue = 0
+                total_parts_cost = 0
+                total_tire_revenue = 0
+                total_tire_cost = 0
+                closed_ros = []
 
-            for ro in response['results']:
-                ro_revenue, ro_cost = self._calculate_ro_financials(ro)
-                total_revenue += ro_revenue
-                total_cost += ro_cost
-                closed_ros.append({
-                    'RO Number': ro['number'],
-                    'Revenue': ro_revenue,
-                    'Cost': ro_cost,
-                    'Gross Profit': ro_revenue - ro_cost,
-                    'GP%': (ro_revenue - ro_cost) / ro_revenue * 100 if ro_revenue > 0 else 0
-                })
+                for ro in response['results']:
+                    ro_revenue, ro_cost, part_revenue, part_cost, tire_revenue, tire_cost = self._calculate_ro_financials(ro)
+                    total_revenue += ro_revenue
+                    total_cost += ro_cost
+                    total_parts_revenue += part_revenue
+                    total_parts_cost += part_cost
+                    total_tire_revenue += tire_revenue
+                    total_tire_cost += tire_cost
+                    closed_ros.append({
+                        'RO Number': ro['number'],
+                        'Revenue': ro_revenue,
+                        'Parts + Tires Cost': part_cost + tire_cost,
+                        'Parts + Tires Margin': (part_revenue + tire_revenue) - (part_cost + tire_cost),
+                        'Parts Margin %': (part_revenue - part_cost) / part_revenue * 100 if part_revenue > 0 else 0,
+                        'Tires Margin %': (tire_revenue - tire_cost) / tire_revenue * 100 if tire_revenue > 0 else 0,
+                        'RO Link':"https://bob-s-automotive-services.shop-ware.com/work_orders/" + str(ro['id'])
+                    })
 
-            if page >= response['total_pages']:
-                break
-            page += 1
+                if page >= response['total_pages']:
+                    break
+                page += 1
+            part_n_tire_marg = (total_tire_revenue + total_parts_revenue) - (total_parts_cost+total_tire_cost)
+            print(f"Total Parts Revenue: {total_parts_revenue} and Total Parts Cost : {total_parts_cost}")
+            parts_margin = ((total_parts_revenue - total_parts_cost) / total_parts_revenue * 100) if total_parts_revenue > 0 else 0
+            tire_margin  = ((total_tire_revenue - total_tire_cost) / total_tire_revenue * 100) if total_tire_revenue > 0 else 0
 
-        gross_profit = total_revenue - total_cost
-        gp_percentage = (gross_profit / total_revenue * 100) if total_revenue > 0 else 0
-
-        return {
+            return {
             'Total Revenue': total_revenue,
-            'Total Cost': total_cost,
-            'Gross Profit': gross_profit,
-            'GP%': gp_percentage,
+            'Total Parts + Tires Cost': total_cost,
+            'Total Parts + Tires Margin': part_n_tire_marg,
+            'Total Parts Margin %': parts_margin,
+            'Total Tires Margin %': tire_margin,
             'Closed ROs': closed_ros
-        }
+             }
+        except Exception as e:
+            logger.error(f"Error getting closed sales of the day: {str(e)}")
+            return {
+            'Total Revenue': 0,
+            'Total Parts + Tires Cost': 0,
+            'Total Parts + Tires Margin': 0,
+            'Total Parts Margin %': 0,
+            'Total Tires Margin %': 0,
+            'Closed ROs': 0
+             }  # Return zeros and empty list on error
+
 
     def _calculate_ro_financials(self, ro):
         revenue = 0
         cost = 0
+        part_revenue=0
+        part_cost=0
+        tire_revenue=0
+        tire_cost=0
+        try: 
+            for service in ro.get('services', []):
+                # Labor rate in cents
+                labor_rate_cents = service.get('labor_rate_cents', 0)
 
-        for service in ro.get('services', []):
-            # Labor rate in cents
-            labor_rate_cents = service.get('labor_rate_cents', 0)
+                # Parts
+                for part in service.get('parts', []):
+                    quoted_price = part.get('quoted_price_cents', 0)
+                    quantity = part.get('quantity', 0)
+                    cost_cents = part.get('cost_cents', 0)
 
-            # Parts
-            for part in service.get('parts', []):
-                quoted_price = part.get('quoted_price_cents', 0)
-                quantity = part.get('quantity', 0)
-                cost_cents = part.get('cost_cents', 0)
+                    revenue += quoted_price * quantity
+                    cost += cost_cents * quantity
+                    
+                    if not self.api.is_tyre(part['part_inventory_id']):# check for tires
+                        part_revenue+=quoted_price * quantity
+                        part_cost+=cost_cents * quantity
+                    else :                                             # tire calculation
+                        tire_revenue += quoted_price * quantity
+                        tire_cost+=cost_cents * quantity
 
-                revenue += quoted_price * quantity
-                cost += cost_cents * quantity
+                # Labor
+                for labor in service.get('labors', []):
+                    if labor.get('hours', 0):
+                        hours = labor.get('hours', 0)
+                        revenue += hours * labor_rate_cents
+                    # Assuming labor cost is 50% of revenue, adjust if you have actual labor cost data
+                        # cost += hours * labor_rate_cents * 0.4
 
-            # Labor
-            for labor in service.get('labors', []):
-                if labor.get('hours', 0):
-                    hours = labor.get('hours', 0)
-                    revenue += hours * labor_rate_cents
-                # Assuming labor cost is 50% of revenue, adjust if you have actual labor cost data
-                # cost += hours * labor_rate_cents * 0.5
+                # Sublet
+                for sublet in service.get('sublets', []):
+                    if sublet.get('price_cents', 0) :
+                        revenue += sublet.get('price_cents', 0)
+                    if sublet.get('cost_cents', 0):
+                        cost += sublet.get('cost_cents', 0)
 
-            # Sublet
-            for sublet in service.get('sublets', []):
-                if sublet.get('price_cents', 0) and sublet.get('cost_cents', 0):
-                    revenue += sublet.get('price_cents', 0)
-                    cost += sublet.get('cost_cents', 0)
+                # Hazmat and Supply Fees (100% GP)
+                for hazmat in service.get('hazmats', []):
+                    if hazmat.get('fee_cents', 0) and hazmat.get('quantity', 0):
+                        fee = hazmat.get('fee_cents', 0)
+                        quantity = hazmat.get('quantity', 0)
+                        revenue += fee * quantity
+        except KeyError as e:
+            logger.error(f"Key error: {e}. Check if the keys exist in the service data.")
+        except TypeError as e:
+            logger.error(f"Type error: {e}. Check data types for calculations.")
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {e}")
+            # Add supply fee to revenue
+        try:
+            if ro.get('supply_fee_cents', 0):
+                revenue += ro.get('supply_fee_cents', 0)
 
-            # Hazmat and Supply Fees (100% GP)
-            for hazmat in service.get('hazmats', []):
-                if hazmat.get('fee_cents', 0) and hazmat.get('quantity', 0):
-                    fee = hazmat.get('fee_cents', 0)
-                    quantity = hazmat.get('quantity', 0)
-                    revenue += fee * quantity
+            # Apply discounts
+            if ro.get('part_discount_cents', 0):
+                revenue -= float(ro.get('part_discount_cents', 0))
 
-        # Add supply fee to revenue
-        if ro.get('supply_fee_cents', 0):
-            revenue += ro.get('supply_fee_cents', 0)
+            if ro.get('labor_discount_cents', 0):
+                revenue -= float(ro.get('labor_discount_cents', 0))
 
-        # Apply discounts
-        if ro.get('part_discount_cents', 0):
-            revenue -= ro.get('part_discount_cents', 0)
+        except (KeyError, TypeError, ValueError) as e:
+            logger.error(f"Error processing supply fees or discounts: {e}")
+            
+        return (revenue / 100,
+            cost / 100,
+            part_revenue / 100,
+            part_cost / 100,
+            tire_revenue / 100,
+            tire_cost / 100)  # Convert cents to dollars
 
-        if ro.get('labor_discount_cents', 0):
-            revenue -= ro.get('labor_discount_cents', 0)
+    def get_car_count(self, closed_sales):
+        try:
+            today = (datetime.now() - timedelta(days=1)).date().isoformat()
+            count = 0
+            page = 1
+            while True:
+                response = self.api.get_repair_orders(
+                    page=page,
+                    per_page=100,
+                    closed_after=f"{today}T00:00:00Z",
+                )
+                for car in response['results']:
+                    count += 1
 
-        return revenue / 100, cost / 100  # Convert cents to dollars
+                if page >= response['total_pages']:
+                    break
+                page += 1
+            logger.info(f"Got car count of today")
+            return count
+        except Exception as e:
+            logger.error(f"Error getting car count: {str(e)}")
+            return 0  # Return 0 on error
 
-    def get_weekly_closed_sales_and_profit(self, num_weeks=8):
+    def get_avg_ro (self,closed_sales,car_count):
+        return closed_sales['Total Revenue']/car_count if car_count > 0 else 0
+    
+
+    def get_weekly_closed_sales(self, num_weeks=8):
         today = datetime.now().date()
         end_dates = [today - timedelta(days=i * 7) for i in range(num_weeks)]
         start_dates = [end_date - timedelta(days=6) for end_date in end_dates]
@@ -201,23 +285,32 @@ class WeeklyReports:
         weekly_data = []
         for start_date, end_date in zip(start_dates[::-1], end_dates[::-1]):
             total_revenue = 0
-            total_cost = 0
-
+            total_parts_margin = 0
+            total_tires_margin = 0
+            total_car_count = 0
+            total_avg_ro = 0
             # Retrieve data for the current week
             for single_date in pd.date_range(start_date, end_date):
                 daily_sales_data = self.get_closed_sales_of_day(single_date)
+                car_count= self.get_car_count(daily_sales_data)
+                avg_ro= self.get_avg_ro(daily_sales_data,car_count)
                 total_revenue += daily_sales_data['Total Revenue']
-                total_cost += daily_sales_data['Total Cost']
+                total_parts_margin += daily_sales_data['Total Parts Margin %']
+                total_tires_margin += daily_sales_data['Total Tires Margin %']
+                total_avg_ro += avg_ro
+                total_car_count += car_count
+                
 
-            gross_profit = total_revenue - total_cost
-            gp_percentage = (gross_profit / total_revenue * 100) if total_revenue > 0 else 0
+            total_parts_margin = total_parts_margin / 7
+            total_tires_margin = total_tires_margin / 7
 
             weekly_data.append({
                 'Week': f"{start_date.strftime('%m/%d')} - {end_date.strftime('%m/%d')}",
                 'Total Revenue': total_revenue,
-                'Total Cost': total_cost,
-                'Gross Profit': gross_profit,
-                'GP%': gp_percentage
+                'Total Parts Margin %': total_parts_margin,
+                'Total Tires Margin %': total_tires_margin,
+                'Total Avg RO': total_avg_ro,
+                'Total Car Count': total_car_count,
             })
 
         df_weekly = pd.DataFrame(weekly_data)
@@ -226,7 +319,7 @@ class WeeklyReports:
     def generate_html_report(self):
         appointments_df = self.get_next_2_weeks_appointments()
         billable_hours_df = self.get_weekly_tech_billable_hours()
-        weekly_closed_sales_df = self.get_weekly_closed_sales_and_profit(num_weeks=8)
+        weekly_closed_sales_df = self.get_weekly_closed_sales(num_weeks=8)
 
         # Plot Total Revenue over the past 8 weeks
         revenue_plot = self.generate_plot(
@@ -239,18 +332,53 @@ class WeeklyReports:
             plot_type='line'
         )
 
-        # Plot Gross Profit over the past 8 weeks
-        profit_plot = self.generate_plot(
+        # Plot Car Count over the past 8 weeks
+        car_count_plot = self.generate_plot(
             weekly_closed_sales_df,
             x_column='Week',
-            y_column='Gross Profit',
-            title='Gross Profit Over the Past 8 Weeks',
+            y_column='Total Car Count',
+            title='Car Count Over the Past 8 Weeks',
             x_label='Week',
-            y_label='Gross Profit ($)',
+            y_label='Car Count',
+            plot_type='bar'
+        )
+
+        # Plot Avg ROs over the past 8 weeks
+        avg_ro_plot = self.generate_plot(
+            weekly_closed_sales_df,
+            x_column='Week',
+            y_column='Total Avg RO',
+            title='Avg ROs Over the Past 8 Weeks',
+            x_label='Week',
+            y_label='Avg ROs',
             plot_type='line'
         )
 
-        # Generate the plot using the generic function
+        # Plot Parts Margin % over the past 8 weeks
+        parts_margin_plot = self.generate_plot(
+            weekly_closed_sales_df,
+            x_column='Week',
+            y_column='Total Parts Margin %',
+            title='Total Parts Margin % Over the Past 8 Weeks',
+            x_label='Week',
+            y_label='Total Parts Margin %',
+            plot_type='line'
+        )
+
+        # Plot Tires Margin % over the past 8 weeks
+        tires_margin_plot = self.generate_plot(
+            weekly_closed_sales_df,
+            x_column='Week',
+            y_column='Total Tires Margin %',
+            title='Total Tires Margin % Over the Past 8 Weeks',
+            x_label='Week',
+            y_label='Total Tires Margin %',
+            plot_type='line'
+        )
+
+
+
+        # Plot Tech billable Hours over the past 8 weeks
         tech_billable_hours_plot = self.generate_plot(
             data=billable_hours_df,
             x_column='Week',
@@ -315,12 +443,30 @@ class WeeklyReports:
             </div>
             <p>This plot shows the total revenue generated over the past 8 weeks, helping to identify trends and patterns in revenue.</p>
 
-            <h2>Gross Profit over the past 8 weeks</h2>
+            <h2>Car Count over the past 8 weeks</h2>
             <div class="plot-container">
-                <img src="data:image/png;base64,{profit_plot}" alt="Gross Profit Over the Past 8 Weeks">
+                <img src="data:image/png;base64,{car_count_plot}" alt="Gross Profit Over the Past 8 Weeks">
             </div>
-            <p>This plot displays the gross profit for the past 8 weeks, offering insights into profitability trends.</p>
+            # <p>This plot displays the Car Count for the past 8 weeks, offering insights into profitability trends.</p>
 
+            <h2>Avg ROs over the past 8 weeks</h2>
+            <div class="plot-container">
+                <img src="data:image/png;base64,{avg_ro_plot}" alt="Gross Profit Over the Past 8 Weeks">
+            </div>
+            # <p>This plot displays the Avg ROs for the past 8 weeks, offering insights into profitability trends.</p>
+
+            <h2>Parts Margin % over the past 8 weeks</h2>
+            <div class="plot-container">
+                <img src="data:image/png;base64,{parts_margin_plot}" alt="Gross Profit Over the Past 8 Weeks">
+            </div>
+            # <p>This plot displays the Parts Margin % for the past 8 weeks, offering insights into profitability trends.</p>            
+
+            <h2>Tires Margin % over the past 8 weeks</h2>
+            <div class="plot-container">
+                <img src="data:image/png;base64,{tires_margin_plot}" alt="Gross Profit Over the Past 8 Weeks">
+            </div>
+            # <p>This plot displays the Tires Margin % for the past 8 weeks, offering insights into profitability trends.</p>                        
+            
             <h2>Weekly Tech Billable Hours</h2>
             <div class="plot-container">
                 <img src="data:image/png;base64,{tech_billable_hours_plot}" alt="Weekly Tech Billable Hours">
