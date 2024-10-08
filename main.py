@@ -1,16 +1,20 @@
 import logging
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-import asyncio
+import os
 import requests
 from datetime import datetime
 from apps.shopwareapi import ShopWareAPI
 from apps.dailyreports import DailyReports
 from apps.weeklyreports import WeeklyReports
 from utils.utils import send_email
+from dotenv import load_dotenv
 import pytz
+
+load_dotenv()
+
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -45,7 +49,7 @@ async def generate_weekly_shopware_reports():
         base_url='https://api.shop-ware.com',
     )
 
-    weekly_reports = WeeklyReports(api)
+    weekly_reports = WeeklyReports(api,int(os.getenv('WEEKLY_DATA')))
     try:
         weekly_html = weekly_reports.generate_html_report()
         weekly_reports.save_html_report(weekly_html)

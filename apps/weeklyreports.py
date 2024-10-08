@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 
 
 class WeeklyReports:
-    def __init__(self, api):
+    def __init__(self, api,duration):
         self.api = api
-
+        self.duration = duration
     def get_next_2_weeks_appointments(self):
         today = datetime.now().date()
         end_date = today + timedelta(days=14)  # Look ahead 14 days for 2 weeks
@@ -88,6 +88,7 @@ class WeeklyReports:
         return df
 
     def get_weekly_tech_billable_hours(self, num_weeks=8):
+        num_weeks=self.duration
         today = datetime.now().date()
         end_dates = [today - timedelta(days=i * 7) for i in range(num_weeks)]
         start_dates = [end_date - timedelta(days=6) for end_date in end_dates]
@@ -250,18 +251,17 @@ class WeeklyReports:
             tire_revenue / 100,
             tire_cost / 100)  # Convert cents to dollars
 
-    def get_car_count(self, closed_sales):
+    def get_car_count(self,specific_date):
         try:
-            today = (datetime.now() - timedelta(days=1)).date().isoformat()
             count = 0
             page = 1
             while True:
                 response = self.api.get_repair_orders(
                     page=page,
                     per_page=100,
-                    closed_after=f"{today}T00:00:00Z",
+                    closed_after=f"{specific_date}T00:00:00Z",
                 )
-                for car in response['results']:
+                for _ in response['results']:
                     count += 1
 
                 if page >= response['total_pages']:
@@ -292,7 +292,7 @@ class WeeklyReports:
             # Retrieve data for the current week
             for single_date in pd.date_range(start_date, end_date):
                 daily_sales_data = self.get_closed_sales_of_day(single_date)
-                car_count= self.get_car_count(daily_sales_data)
+                car_count= self.get_car_count(single_date)
                 avg_ro= self.get_avg_ro(daily_sales_data,car_count)
                 total_revenue += daily_sales_data['Total Revenue']
                 total_parts_margin += daily_sales_data['Total Parts Margin %']
@@ -319,14 +319,14 @@ class WeeklyReports:
     def generate_html_report(self):
         appointments_df = self.get_next_2_weeks_appointments()
         billable_hours_df = self.get_weekly_tech_billable_hours()
-        weekly_closed_sales_df = self.get_weekly_closed_sales(num_weeks=8)
+        weekly_closed_sales_df = self.get_weekly_closed_sales(num_weeks=self.duration)
 
         # Plot Total Revenue over the past 8 weeks
         revenue_plot = self.generate_plot(
             weekly_closed_sales_df,
             x_column='Week',
             y_column='Total Revenue',
-            title='Total Revenue Over the Past 8 Weeks',
+            title='Total Revenue Over the Past' + str(self.duration)+' Weeks',
             x_label='Week',
             y_label='Total Revenue ($)',
             plot_type='line'
@@ -337,10 +337,10 @@ class WeeklyReports:
             weekly_closed_sales_df,
             x_column='Week',
             y_column='Total Car Count',
-            title='Car Count Over the Past 8 Weeks',
+            title='Car Count Over' + str(self.duration)+' Weeks',
             x_label='Week',
             y_label='Car Count',
-            plot_type='bar'
+            plot_type='line'
         )
 
         # Plot Avg ROs over the past 8 weeks
@@ -348,7 +348,7 @@ class WeeklyReports:
             weekly_closed_sales_df,
             x_column='Week',
             y_column='Total Avg RO',
-            title='Avg ROs Over the Past 8 Weeks',
+            title='Avg ROs Over' + str(self.duration)+' Weeks',
             x_label='Week',
             y_label='Avg ROs',
             plot_type='line'
@@ -359,7 +359,7 @@ class WeeklyReports:
             weekly_closed_sales_df,
             x_column='Week',
             y_column='Total Parts Margin %',
-            title='Total Parts Margin % Over the Past 8 Weeks',
+            title='Total Parts Margin % Over' + str(self.duration)+' Weeks',
             x_label='Week',
             y_label='Total Parts Margin %',
             plot_type='line'
@@ -370,7 +370,7 @@ class WeeklyReports:
             weekly_closed_sales_df,
             x_column='Week',
             y_column='Total Tires Margin %',
-            title='Total Tires Margin % Over the Past 8 Weeks',
+            title='Total Tires Margin % ' + str(self.duration)+' Weeks',
             x_label='Week',
             y_label='Total Tires Margin %',
             plot_type='line'
@@ -383,7 +383,7 @@ class WeeklyReports:
             data=billable_hours_df,
             x_column='Week',
             y_column='Total Hours',
-            title='Weekly Tech Billable Hours (Last 8 Weeks)',
+            title='Weekly Tech Billable Hours (Last' + str(self.duration)+' Weeks)',
             x_label='Week',
             y_label='Total Billable Hours',
             plot_type='bar'
@@ -437,41 +437,41 @@ class WeeklyReports:
             <h2>Appointments coming up in next 2 weeks</h2>
             {appointments_df.to_html(index=False)}
 
-            <h2>Total Revenue over the past 8 weeks</h2>
+            <h2>Total Revenue over the past {self.duration} weeks</h2>
             <div class="plot-container">
-                <img src="data:image/png;base64,{revenue_plot}" alt="Total Revenue Over the Past 8 Weeks">
+                <img src="data:image/png;base64,{revenue_plot}" alt="Total Revenue Over the Past {self.duration} Weeks">
             </div>
-            <p>This plot shows the total revenue generated over the past 8 weeks, helping to identify trends and patterns in revenue.</p>
+            <p>This plot shows the total revenue generated over the past {self.duration} weeks, helping to identify trends and patterns in revenue.</p>
 
-            <h2>Car Count over the past 8 weeks</h2>
+            <h2>Car Count over the past {self.duration} weeks</h2>
             <div class="plot-container">
-                <img src="data:image/png;base64,{car_count_plot}" alt="Gross Profit Over the Past 8 Weeks">
+                <img src="data:image/png;base64,{car_count_plot}" alt="Gross Profit Over the Past {self.duration} Weeks">
             </div>
-            # <p>This plot displays the Car Count for the past 8 weeks, offering insights into profitability trends.</p>
+            # <p>This plot displays the Car Count for the past {self.duration} weeks, offering insights into profitability trends.</p>
 
-            <h2>Avg ROs over the past 8 weeks</h2>
+            <h2>Avg ROs over the past {self.duration} weeks</h2>
             <div class="plot-container">
-                <img src="data:image/png;base64,{avg_ro_plot}" alt="Gross Profit Over the Past 8 Weeks">
+                <img src="data:image/png;base64,{avg_ro_plot}" alt="Gross Profit Over the Past {self.duration} Weeks">
             </div>
-            # <p>This plot displays the Avg ROs for the past 8 weeks, offering insights into profitability trends.</p>
+            # <p>This plot displays the Avg ROs for the past {self.duration} weeks, offering insights into profitability trends.</p>
 
-            <h2>Parts Margin % over the past 8 weeks</h2>
+            <h2>Parts Margin % over the past {self.duration} weeks</h2>
             <div class="plot-container">
-                <img src="data:image/png;base64,{parts_margin_plot}" alt="Gross Profit Over the Past 8 Weeks">
+                <img src="data:image/png;base64,{parts_margin_plot}" alt="Gross Profit Over the Past {self.duration} Weeks">
             </div>
-            # <p>This plot displays the Parts Margin % for the past 8 weeks, offering insights into profitability trends.</p>            
+            # <p>This plot displays the Parts Margin % for the past {self.duration} weeks, offering insights into profitability trends.</p>            
 
-            <h2>Tires Margin % over the past 8 weeks</h2>
+            <h2>Tires Margin % over the past {self.duration} weeks</h2>
             <div class="plot-container">
-                <img src="data:image/png;base64,{tires_margin_plot}" alt="Gross Profit Over the Past 8 Weeks">
+                <img src="data:image/png;base64,{tires_margin_plot}" alt="Gross Profit Over the Past {self.duration} Weeks">
             </div>
-            # <p>This plot displays the Tires Margin % for the past 8 weeks, offering insights into profitability trends.</p>                        
+            # <p>This plot displays the Tires Margin % for the past {self.duration} weeks, offering insights into profitability trends.</p>                        
             
             <h2>Weekly Tech Billable Hours</h2>
             <div class="plot-container">
                 <img src="data:image/png;base64,{tech_billable_hours_plot}" alt="Weekly Tech Billable Hours">
             </div>
-            <p>The bar chart represents the total billable hours recorded by technicians over the last 8 weeks.</p>
+            <p>The bar chart represents the total billable hours recorded by technicians over the last {self.duration} weeks.</p>
 
         </body>
         </html>
