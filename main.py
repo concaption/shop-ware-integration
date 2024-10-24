@@ -99,3 +99,10 @@ if __name__ == "__main__":
     import uvicorn
     logger.info("Starting the application")
     uvicorn.run(app, host="0.0.0.0", port=8000)
+    # api = ShopWareAPI(
+    #     base_url='https://api.shop-ware.com',
+    # )
+    # weekly_reports = WeeklyReports(api,int(os.getenv('WEEKLY_DATA')))
+    # weekly_html = weekly_reports.generate_html_report()
+    # weekly_reports.save_html_report(weekly_html)
+    # send_email("Shop Ware Weekly Report", weekly_html, True)

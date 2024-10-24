@@ -52,66 +52,17 @@ class WeeklyReports:
 
         return pd.DataFrame(data)
 
-    def get_tech_billable_hours(self, start_date, end_date):
-        repair_orders = []
-        page = 1
-        while True:
-            response = self.api.get_repair_orders(
-                page=page,
-                per_page=100,
-                closed_after=start_date.isoformat(),
-                closed_before=end_date.isoformat(),
-            )
-
-            repair_orders.extend(response['results'])
-
-            if page >= response['total_pages']:
-                break
-            page += 1
-
-        tech_hours = {}
-        for ro in repair_orders:
-            for service in ro.get('services', []):
-                for labor in service.get('labors', []):
-                    tech_id = labor.get('technician_id')
-                    if labor.get('hours', 0):
-                        hours = labor.get('hours', 0)
-                        if tech_id:
-                            if tech_id not in tech_hours:
-                                tech_hours[tech_id] = 0
-                            tech_hours[tech_id] += hours
-
-        df = pd.DataFrame([(tech_id, hours) for tech_id, hours in tech_hours.items()],
-                          columns=['Technician ID', 'Billable Hours'])
-        df = df.sort_values('Billable Hours', ascending=False).reset_index(drop=True)
-
-        return df
-
-    def get_weekly_tech_billable_hours(self, num_weeks=8):
-        num_weeks=self.duration
-        today = datetime.now().date()
-        end_dates = [today - timedelta(days=i * 7) for i in range(num_weeks)]
-        start_dates = [end_date - timedelta(days=6) for end_date in end_dates]
-
-        weekly_data = []
-        for start_date, end_date in zip(start_dates[::-1], end_dates[::-1]):
-            df = self.get_tech_billable_hours(start_date, end_date)
-            total_hours = df['Billable Hours'].sum()
-            weekly_data.append({
-                'Week': f"{start_date.strftime('%m/%d')} - {end_date.strftime('%m/%d')}",
-                'Total Hours': total_hours
-            })
-
-        df_weekly = pd.DataFrame(weekly_data)
-        return df_weekly
-
-    def get_closed_sales_of_day(self, specific_date=None):
+    def get_tech_billable_hours_complete(self, specific_date):
         specific_date = specific_date or (datetime.now() - timedelta(days=3)).date().isoformat()
-        total_revenue = 0
-        total_cost = 0
-        closed_ros = []
-
         page = 1
+        complete_response = {
+            "results": [],
+            "limit": 100,
+            "limited": False,
+            "total_count": 0,
+            "current_page": 1,
+            "total_pages": 0
+        }
         try:
             while True:
                 response = self.api.get_repair_orders(
@@ -120,15 +71,147 @@ class WeeklyReports:
                     closed_after=f"{specific_date}T00:00:00Z",
                     status='invoice'
                 )
-                total_revenue = 0
-                total_cost = 0
-                total_parts_revenue = 0
-                total_parts_cost = 0
-                total_tire_revenue = 0
-                total_tire_cost = 0
-                closed_ros = []
+                
+                # For first page, initialize the metadata
+                if page == 1:
+                    complete_response['total_pages'] = response.get('total_pages', 0)
+                    complete_response['total_count'] = response.get('total_count', 0)
+                    
+                # Extend the results list with the current page's results
+                if 'results' in response:
+                    complete_response['results'].extend(response['results'])
+                
+                # Check if we've reached the last page
+                if page >= response.get('total_pages', 0):
+                    break
+                    
+                page += 1
+                
+            # Update final metadata
+            complete_response['current_page'] = 1  # Always 1 since we're combining all pages
+            complete_response['limit'] = len(complete_response['results'])
+            complete_response['limited'] = False  # Since we're getting all results
+                
+            return complete_response
+        
+        except Exception as e:
+            logger.error(f"Error getting Tech Billable hours of the day: {str(e)}")
+            return None
 
-                for ro in response['results']:
+
+    def get_tech_billable_hours(self, repair_orders, specific_date):
+        tech_hours = {}
+        df=pd.DataFrame([[0,0]], columns=['Technician ID', 'Billable Hours'])
+        df = df.sort_values('Billable Hours', ascending=False).reset_index(drop=True)
+        for ro in repair_orders['results']:
+            # print (ro.get('closed_at'))
+            if datetime.strptime(str(ro.get('closed_at')), "%Y-%m-%dT%H:%M:%SZ").date() == datetime.strptime(str(specific_date), "%Y-%m-%d %H:%M:%S").date() :
+                for service in ro.get('services', []):
+                    for labor in service.get('labors', []):
+                        tech_id = labor.get('technician_id')
+                        if labor.get('hours', 0):
+                            hours = labor.get('hours', 0)
+                            if tech_id:
+                                if tech_id not in tech_hours:
+                                    tech_hours[tech_id] = 0
+                                tech_hours[tech_id] += hours
+
+            df = pd.DataFrame([(tech_id, hours) for tech_id, hours in tech_hours.items()],
+                            columns=['Technician ID', 'Billable Hours'])
+            df = df.sort_values('Billable Hours', ascending=False).reset_index(drop=True)
+
+        return df
+
+    def get_weekly_tech_billable_hours(self, num_weeks=8):
+        today = datetime.now().date()
+        # today= today - timedelta(days=3)
+        num_weeks=self.duration
+        start_date1=today - timedelta(days=num_weeks * 7)
+        end_dates = [today - timedelta(days=i * 7) for i in range(num_weeks)]
+        start_dates = [end_date - timedelta(days=6) for end_date in end_dates]
+        response_tech_billable_hours=self.get_tech_billable_hours_complete(start_date1)
+        weekly_data = []
+        for start_date, end_date in zip(start_dates[::-1], end_dates[::-1]):
+            total_hours=0
+            for single_date in pd.date_range(start_date, end_date):
+                df = self.get_tech_billable_hours(response_tech_billable_hours, single_date)
+                total_hours = total_hours + df['Billable Hours'].sum()
+                
+            weekly_data.append({
+                'Week': f"{start_date.strftime('%m/%d')} - {end_date.strftime('%m/%d')}",
+                'Total Hours': total_hours
+            })
+
+        df_weekly = pd.DataFrame(weekly_data)
+        return df_weekly
+
+    def get_closed_sales_complete(self, specific_date=None):
+        specific_date = specific_date or (datetime.now() - timedelta(days=3)).date().isoformat()
+        page = 1
+        complete_response = {
+            "results": [],
+            "limit": 100,
+            "limited": False,
+            "total_count": 0,
+            "current_page": 1,
+            "total_pages": 0
+        }
+        
+        try:
+            while True:
+                response = self.api.get_repair_orders(
+                    page=page,
+                    per_page=100,
+                    closed_after=f"{specific_date}T00:00:00Z",
+                    status='invoice'
+                )
+                
+                # For first page, initialize the metadata
+                if page == 1:
+                    complete_response['total_pages'] = response.get('total_pages', 0)
+                    complete_response['total_count'] = response.get('total_count', 0)
+                    
+                # Extend the results list with the current page's results
+                if 'results' in response:
+                    complete_response['results'].extend(response['results'])
+                
+                # Check if we've reached the last page
+                if page >= response.get('total_pages', 0):
+                    break
+                    
+                page += 1
+                
+            # Update final metadata
+            complete_response['current_page'] = 1  # Always 1 since we're combining all pages
+            complete_response['limit'] = len(complete_response['results'])
+            complete_response['limited'] = False  # Since we're getting all results
+                
+            return complete_response
+            
+        except Exception as e:
+            logger.error(f"Error getting closed sales of the day: {str(e)}")
+            return None
+
+
+    def get_closed_sales_of_day(self,response, specific_date=None):
+        # specific_date = specific_date or (datetime.now() - timedelta(days=3)).date().isoformat()
+        total_revenue = 0
+        total_cost = 0
+        closed_ros = []
+
+        try:
+            total_revenue = 0
+            total_cost = 0
+            total_parts_revenue = 0
+            total_parts_cost = 0
+            total_tire_revenue = 0
+            total_tire_cost = 0
+            closed_ros = []
+
+            for ro in response['results']:
+                # print(f"Updated AT {datetime.strptime(str(ro['closed_at']), "%Y-%m-%dT%H:%M:%SZ").date()}")
+                # print(datetime.strptime(str(specific_date), "%Y-%m-%d %H:%M:%S").date())
+                if datetime.strptime(str(ro['closed_at']), "%Y-%m-%dT%H:%M:%SZ").date() == datetime.strptime(str(specific_date), "%Y-%m-%d %H:%M:%S").date() :
                     ro_revenue, ro_cost, part_revenue, part_cost, tire_revenue, tire_cost = self._calculate_ro_financials(ro)
                     total_revenue += ro_revenue
                     total_cost += ro_cost
@@ -146,11 +229,8 @@ class WeeklyReports:
                         'RO Link':"https://bob-s-automotive-services.shop-ware.com/work_orders/" + str(ro['id'])
                     })
 
-                if page >= response['total_pages']:
-                    break
-                page += 1
             part_n_tire_marg = (total_tire_revenue + total_parts_revenue) - (total_parts_cost+total_tire_cost)
-            print(f"Total Parts Revenue: {total_parts_revenue} and Total Parts Cost : {total_parts_cost}")
+            # print(f"Total Parts Revenue: {total_parts_revenue} and Total Parts Cost : {total_parts_cost}")
             parts_margin = ((total_parts_revenue - total_parts_cost) / total_parts_revenue * 100) if total_parts_revenue > 0 else 0
             tire_margin  = ((total_tire_revenue - total_tire_cost) / total_tire_revenue * 100) if total_tire_revenue > 0 else 0
 
@@ -252,26 +332,60 @@ class WeeklyReports:
             tire_cost / 100)  # Convert cents to dollars
 
     def get_car_count(self,specific_date):
+        specific_date = specific_date or (datetime.now() - timedelta(days=3)).date().isoformat()
+        page = 1
+        complete_response = {
+            "results": [],
+            "limit": 100,
+            "limited": False,
+            "total_count": 0,
+            "current_page": 1,
+            "total_pages": 0
+        }
+        
         try:
-            count = 0
-            page = 1
             while True:
                 response = self.api.get_repair_orders(
                     page=page,
                     per_page=100,
                     closed_after=f"{specific_date}T00:00:00Z",
                 )
-                for _ in response['results']:
-                    count += 1
-
-                if page >= response['total_pages']:
+                
+                # For first page, initialize the metadata
+                if page == 1:
+                    complete_response['total_pages'] = response.get('total_pages', 0)
+                    complete_response['total_count'] = response.get('total_count', 0)
+                    
+                # Extend the results list with the current page's results
+                if 'results' in response:
+                    complete_response['results'].extend(response['results'])
+                
+                # Check if we've reached the last page
+                if page >= response.get('total_pages', 0):
                     break
+                    
                 page += 1
-            logger.info(f"Got car count of today")
-            return count
+                
+            # Update final metadata
+            complete_response['current_page'] = 1  # Always 1 since we're combining all pages
+            complete_response['limit'] = len(complete_response['results'])
+            complete_response['limited'] = False  # Since we're getting all results
+            
+            logger.info(f"Got cars in of the day.")
+            
+            return complete_response
+            
         except Exception as e:
-            logger.error(f"Error getting car count: {str(e)}")
-            return 0  # Return 0 on error
+            logger.error(f"Error getting cars in of the day: {str(e)}")
+            return None
+
+    def get_car_count_specific(self,response,specific_date):
+        count=0
+        for ro in response['results']:
+            if datetime.strptime(str(ro['closed_at']), "%Y-%m-%dT%H:%M:%SZ").date() == datetime.strptime(str(specific_date), "%Y-%m-%d %H:%M:%S").date() :
+                count = count + 1
+        return count
+
 
     def get_avg_ro (self,closed_sales,car_count):
         return closed_sales['Total Revenue']/car_count if car_count > 0 else 0
@@ -279,39 +393,66 @@ class WeeklyReports:
 
     def get_weekly_closed_sales(self, num_weeks=8):
         today = datetime.now().date()
+        # today= today - timedelta(days=3)
+        start_date1=today - timedelta(days=16 * 7)
+        response_closed_sales = self.get_closed_sales_complete(start_date1)
+        response_car_count = self.get_car_count(start_date1)
         end_dates = [today - timedelta(days=i * 7) for i in range(num_weeks)]
         start_dates = [end_date - timedelta(days=6) for end_date in end_dates]
-
         weekly_data = []
+        # Header for the report
+        print("\n" + "="*50)
+        print(f"Daily Metrics Summary Report")
+        print("="*50 + "\n")
         for start_date, end_date in zip(start_dates[::-1], end_dates[::-1]):
             total_revenue = 0
             total_parts_margin = 0
             total_tires_margin = 0
             total_car_count = 0
-            total_avg_ro = 0
+            parts_day_count= 0
+            tires_day_count= 0
             # Retrieve data for the current week
             for single_date in pd.date_range(start_date, end_date):
-                daily_sales_data = self.get_closed_sales_of_day(single_date)
-                car_count= self.get_car_count(single_date)
-                avg_ro= self.get_avg_ro(daily_sales_data,car_count)
+                print (f"Single Date {single_date}, Start Date {start_date} , End Date {end_date}")
+                daily_sales_data = self.get_closed_sales_of_day(response_closed_sales,single_date)
+                car_count= self.get_car_count_specific(response_car_count,single_date)
+                # avg_ro= self.get_avg_ro(daily_sales_data,car_count)
                 total_revenue += daily_sales_data['Total Revenue']
+                if daily_sales_data['Total Parts Margin %'] > 0 :
+                    parts_day_count += 1
+                if daily_sales_data['Total Tires Margin %'] > 0 :
+                    tires_day_count += 1                    
                 total_parts_margin += daily_sales_data['Total Parts Margin %']
                 total_tires_margin += daily_sales_data['Total Tires Margin %']
-                total_avg_ro += avg_ro
                 total_car_count += car_count
+                print(f"{'Car Count:':<25} {car_count:>8}")
+                # print(f"{'Average RO:':<25} ${daily_sales_data['Total Revenue']/car_count:>7,.2f}")
+                print(f"{'Daily Revenue:':<25} ${daily_sales_data['Total Revenue']:>7,.2f}")
+                print(f"{'Parts Margin %:':<25} {daily_sales_data['Total Parts Margin %']:>7.1f}%")
+                print(f"{'Tires Margin %:':<25} {daily_sales_data['Total Tires Margin %']:>7.1f}%")
+                print("-" * 40 + "\n")                
                 
 
-            total_parts_margin = total_parts_margin / 7
-            total_tires_margin = total_tires_margin / 7
-
+            total_parts_margin = total_parts_margin / parts_day_count
+            total_tires_margin = total_tires_margin / tires_day_count
+            print (f"Week {start_date.strftime('%m/%d')} - {end_date.strftime('%m/%d')} , Total Revenue {total_revenue},Total Parts Margin % {total_parts_margin}, Total Tires Margin % {total_tires_margin}, Total Car {total_car_count}")
             weekly_data.append({
                 'Week': f"{start_date.strftime('%m/%d')} - {end_date.strftime('%m/%d')}",
                 'Total Revenue': total_revenue,
                 'Total Parts Margin %': total_parts_margin,
                 'Total Tires Margin %': total_tires_margin,
-                'Total Avg RO': total_avg_ro,
+                'Total Avg RO': total_revenue/total_car_count if total_car_count > 0 else 0,
                 'Total Car Count': total_car_count,
             })
+            print("="*50)
+            print("Summary Statistics")
+            print("="*50)
+            print(f"{'Total Cars Serviced:':<25} {total_car_count:>8}")
+            print(f"{'Average RO Value:':<25} ${total_revenue/total_car_count if total_car_count > 0 else 0:>7,.2f}")
+            print(f"{'Total Revenue:':<25} ${total_revenue}")
+            print(f"{'Average Parts Margin:':<25} {total_parts_margin}%")
+            print(f"{'Average Tires Margin:':<25} {total_tires_margin}%")
+            print("="*50)
 
         df_weekly = pd.DataFrame(weekly_data)
         return df_weekly
